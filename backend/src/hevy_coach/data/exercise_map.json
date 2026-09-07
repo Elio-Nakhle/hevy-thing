@@ -1,0 +1,544 @@
+{
+  "_comment": [
+    "Maps Hevy exercises onto the lifts in standards.json.",
+    "",
+    "'rules' are tried in order against the lowercased exercise title and the",
+    "FIRST match wins, so specific variants must come before their base lift",
+    "(incline bench before bench, dumbbell bench before bench).",
+    "",
+    "'overrides' maps a Hevy exercise_template_id directly to a lift id and",
+    "always beats the rules. Use it for custom exercises, or when a title is",
+    "ambiguous. Set a lift to null to exclude an exercise from benchmarking."
+  ],
+  "overrides": {},
+  "rules": [
+    {
+      "lift": "horizontal-leg-press",
+      "match": [
+        "leg press horizontal",
+        "horizontal leg press"
+      ]
+    },
+    {
+      "lift": "leg-press",
+      "match": [
+        "leg press"
+      ]
+    },
+    {
+      "lift": "hack-squat",
+      "match": [
+        "hack squat"
+      ]
+    },
+    {
+      "lift": "smith-machine-squat",
+      "match": [
+        "smith machine squat",
+        "squat \\(smith machine\\)"
+      ]
+    },
+    {
+      "lift": "zercher-squat",
+      "match": [
+        "zercher squat"
+      ]
+    },
+    {
+      "lift": "front-squat",
+      "match": [
+        "front squat"
+      ]
+    },
+    {
+      "lift": "goblet-squat",
+      "match": [
+        "goblet squat"
+      ]
+    },
+    {
+      "lift": "bulgarian-split-squat",
+      "match": [
+        "bulgarian split squat",
+        "split squat"
+      ]
+    },
+    {
+      "lift": "squat",
+      "match": [
+        "^squat",
+        "back squat",
+        "squat \\(barbell\\)"
+      ]
+    },
+    {
+      "lift": "dumbbell-lunge",
+      "match": [
+        "lunge \\(dumbbell\\)",
+        "dumbbell lunge"
+      ]
+    },
+    {
+      "lift": "good-morning",
+      "match": [
+        "good morning"
+      ]
+    },
+    {
+      "lift": "seated-leg-curl",
+      "match": [
+        "seated leg curl",
+        "leg curl \\(seated"
+      ]
+    },
+    {
+      "lift": "lying-leg-curl",
+      "match": [
+        "lying leg curl",
+        "leg curl"
+      ]
+    },
+    {
+      "lift": "leg-extension",
+      "match": [
+        "leg extension"
+      ]
+    },
+    {
+      "lift": "seated-calf-raise",
+      "match": [
+        "seated calf raise"
+      ]
+    },
+    {
+      "lift": "dumbbell-calf-raise",
+      "match": [
+        "calf raise \\(dumbbell\\)",
+        "dumbbell calf raise"
+      ]
+    },
+    {
+      "lift": "barbell-calf-raise",
+      "match": [
+        "calf raise \\(barbell\\)",
+        "barbell calf raise"
+      ]
+    },
+    {
+      "lift": "calf-raise",
+      "match": [
+        "calf raise \\(machine\\)",
+        "machine calf raise",
+        "calf press"
+      ]
+    },
+    {
+      "lift": "hip-abduction",
+      "match": [
+        "hip abduction",
+        "abductor"
+      ]
+    },
+    {
+      "lift": "hip-adduction",
+      "match": [
+        "hip adduction",
+        "adductor"
+      ]
+    },
+    {
+      "lift": "hip-thrust",
+      "match": [
+        "hip thrust",
+        "glute bridge"
+      ]
+    },
+    {
+      "lift": "machine-back-extension",
+      "match": [
+        "back extension \\(machine\\)",
+        "machine back extension",
+        "hyperextension \\(machine\\)"
+      ]
+    },
+    {
+      "lift": "sumo-deadlift",
+      "match": [
+        "sumo deadlift",
+        "deadlift \\(sumo\\)"
+      ]
+    },
+    {
+      "lift": "romanian-deadlift",
+      "match": [
+        "romanian deadlift",
+        "^rdl"
+      ]
+    },
+    {
+      "lift": "hex-bar-deadlift",
+      "match": [
+        "hex bar deadlift",
+        "trap bar deadlift",
+        "deadlift \\(trap bar\\)"
+      ]
+    },
+    {
+      "lift": "deadlift",
+      "match": [
+        "^deadlift",
+        "deadlift \\(barbell\\)",
+        "conventional deadlift"
+      ]
+    },
+    {
+      "lift": "incline-bench-press",
+      "match": [
+        "incline bench press \\(barbell\\)",
+        "incline bench press$"
+      ]
+    },
+    {
+      "lift": "dumbbell-bench-press",
+      "match": [
+        "incline bench press \\(dumbbell\\)",
+        "bench press \\(dumbbell\\)",
+        "dumbbell bench press",
+        "chest press \\(dumbbell\\)"
+      ]
+    },
+    {
+      "lift": "close-grip-bench-press",
+      "match": [
+        "close.?grip.*bench press",
+        "bench press.*close.?grip"
+      ]
+    },
+    {
+      "lift": "bench-press",
+      "match": [
+        "^bench press",
+        "bench press \\(barbell\\)",
+        "barbell bench press"
+      ]
+    },
+    {
+      "lift": "chest-press",
+      "match": [
+        "chest press"
+      ]
+    },
+    {
+      "lift": "machine-chest-fly",
+      "match": [
+        "chest fly \\(machine\\)",
+        "machine chest fly",
+        "pec deck",
+        "butterfly"
+      ]
+    },
+    {
+      "lift": "cable-fly",
+      "match": [
+        "cable fly",
+        "fly \\(cable\\)",
+        "cable crossover",
+        "crossover \\(cable\\)"
+      ]
+    },
+    {
+      "lift": "dumbbell-fly",
+      "match": [
+        "chest fly \\(dumbbell\\)",
+        "dumbbell fly",
+        "fly \\(dumbbell\\)",
+        "chest fly"
+      ]
+    },
+    {
+      "lift": "machine-reverse-fly",
+      "match": [
+        "reverse fly \\(machine\\)",
+        "machine reverse fly",
+        "rear delt \\(machine\\)"
+      ]
+    },
+    {
+      "lift": "dumbbell-reverse-fly",
+      "match": [
+        "reverse fly",
+        "rear delt fly",
+        "rear delt"
+      ]
+    },
+    {
+      "lift": "machine-lateral-raise",
+      "match": [
+        "lateral raise \\(machine\\)",
+        "machine lateral raise"
+      ]
+    },
+    {
+      "lift": "cable-lateral-raise",
+      "match": [
+        "lateral raise \\(cable\\)",
+        "cable lateral raise"
+      ]
+    },
+    {
+      "lift": "dumbbell-lateral-raise",
+      "match": [
+        "lateral raise",
+        "side raise"
+      ]
+    },
+    {
+      "lift": "upright-row",
+      "match": [
+        "upright row"
+      ]
+    },
+    {
+      "lift": "landmine-press",
+      "match": [
+        "landmine press"
+      ]
+    },
+    {
+      "lift": "dumbbell-shoulder-press",
+      "match": [
+        "shoulder press \\(dumbbell\\)",
+        "dumbbell shoulder press",
+        "arnold press",
+        "overhead press \\(dumbbell\\)"
+      ]
+    },
+    {
+      "lift": "machine-shoulder-press",
+      "match": [
+        "shoulder press \\(machine\\)",
+        "machine shoulder press"
+      ]
+    },
+    {
+      "lift": "seated-shoulder-press",
+      "match": [
+        "seated shoulder press"
+      ]
+    },
+    {
+      "lift": "military-press",
+      "match": [
+        "military press"
+      ]
+    },
+    {
+      "lift": "shoulder-press",
+      "match": [
+        "^shoulder press",
+        "overhead press",
+        "^ohp",
+        "strict press"
+      ]
+    },
+    {
+      "lift": "t-bar-row",
+      "match": [
+        "t.?bar row"
+      ]
+    },
+    {
+      "lift": "machine-row",
+      "match": [
+        "row \\(machine\\)",
+        "machine row"
+      ]
+    },
+    {
+      "lift": "dumbbell-row",
+      "match": [
+        "bent over row \\(dumbbell\\)",
+        "dumbbell row",
+        "single arm.*row \\(dumbbell\\)",
+        "^row \\(dumbbell\\)"
+      ]
+    },
+    {
+      "lift": "seated-cable-row",
+      "match": [
+        "seated cable row",
+        "seated row",
+        "cable row"
+      ]
+    },
+    {
+      "lift": "bent-over-row",
+      "match": [
+        "bent over row",
+        "barbell row",
+        "pendlay row",
+        "^row \\(barbell\\)"
+      ]
+    },
+    {
+      "lift": "lat-pulldown",
+      "match": [
+        "lat pulldown",
+        "pulldown"
+      ]
+    },
+    {
+      "lift": "chin-ups",
+      "match": [
+        "chin up"
+      ]
+    },
+    {
+      "lift": "pull-ups",
+      "match": [
+        "pull up",
+        "pull-up",
+        "^pullup"
+      ]
+    },
+    {
+      "lift": "dumbbell-shrug",
+      "match": [
+        "shrug \\(dumbbell\\)",
+        "dumbbell shrug"
+      ]
+    },
+    {
+      "lift": "barbell-shrug",
+      "match": [
+        "shrug \\(barbell\\)",
+        "barbell shrug",
+        "^shrug"
+      ]
+    },
+    {
+      "lift": "reverse-wrist-curl",
+      "match": [
+        "reverse wrist curl",
+        "wrist extension"
+      ]
+    },
+    {
+      "lift": "wrist-curl",
+      "match": [
+        "wrist curl"
+      ]
+    },
+    {
+      "lift": "preacher-curl",
+      "match": [
+        "preacher curl"
+      ]
+    },
+    {
+      "lift": "hammer-curl",
+      "match": [
+        "hammer curl"
+      ]
+    },
+    {
+      "lift": "incline-curl",
+      "match": [
+        "incline curl",
+        "incline dumbbell curl"
+      ]
+    },
+    {
+      "lift": "reverse-curl",
+      "match": [
+        "reverse curl"
+      ]
+    },
+    {
+      "lift": "cable-curl",
+      "match": [
+        "curl \\(cable\\)",
+        "cable curl"
+      ]
+    },
+    {
+      "lift": "ez-bar-curl",
+      "match": [
+        "curl \\(ez bar\\)",
+        "ez bar curl",
+        "ez.?bar.*curl"
+      ]
+    },
+    {
+      "lift": "dumbbell-curl",
+      "match": [
+        "curl \\(dumbbell\\)",
+        "dumbbell curl",
+        "concentration curl"
+      ]
+    },
+    {
+      "lift": "barbell-curl",
+      "match": [
+        "curl \\(barbell\\)",
+        "barbell curl",
+        "^bicep curl",
+        "^biceps curl"
+      ]
+    },
+    {
+      "lift": "dips",
+      "match": [
+        "^dip",
+        "triceps dip",
+        "tricep dip",
+        "chest dip"
+      ]
+    },
+    {
+      "lift": "skullcrusher",
+      "match": [
+        "skull ?crusher",
+        "lying tricep",
+        "tricep.*extension \\(barbell\\)",
+        "french press"
+      ]
+    },
+    {
+      "lift": "tricep-rope-pushdown",
+      "match": [
+        "rope pushdown",
+        "tricep.*rope"
+      ]
+    },
+    {
+      "lift": "tricep-pushdown",
+      "match": [
+        "tricep.*pushdown",
+        "pushdown",
+        "tricep.*extension \\(cable\\)"
+      ]
+    },
+    {
+      "lift": "face-pull",
+      "match": [
+        "face pull"
+      ]
+    },
+    {
+      "lift": "farmers-walk",
+      "match": [
+        "farmers walk",
+        "farmer's walk",
+        "farmer walk"
+      ]
+    },
+    {
+      "lift": "cable-crunch",
+      "match": [
+        "cable crunch",
+        "crunch \\(cable\\)"
+      ]
+    }
+  ]
+}

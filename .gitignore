@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Nuxt
+node_modules/
+.nuxt/
+.output/
+.data/
+dist/
+
+# Local data: your training history and your keys.
+# Anchored, so the bundled datasets in backend/src/hevy_coach/data/ stay tracked.
+.env
+.env.*
+!.env.example
+/data/
+/workouts/*.csv
+
+# OS / editor
+.DS_Store
+*.swp

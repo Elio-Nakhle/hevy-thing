@@ -1,0 +1,106 @@
+{
+  "_comment": [
+    "Muscle groups per exercise, keyed on the exercise title.",
+    "",
+    "The Hevy API serves this metadata per exercise template; the CSV export does",
+    "not, so it is reconstructed here. 'rules' are tried in order against the",
+    "lowercased title and the FIRST match wins, so specific variants must come",
+    "before their base movement (leg curl before curl, chest dip before dip,",
+    "rowing machine before row).",
+    "",
+    "'overrides' maps an exact lowercased title to a rule body and always beats",
+    "the rules - use it for custom exercises the patterns get wrong.",
+    "",
+    "'secondary' muscles count as half a set in muscle_group_volume. An exercise",
+    "that matches nothing lands in 'other'; hevy-coach import reports those."
+  ],
+
+  "overrides": {},
+
+  "rules": [
+    { "match": ["calf raise", "^calf", "calves"], "primary": "calves" },
+
+    { "match": ["wrist curl", "wrist extension", "wrist roller", "reverse curl"],
+      "primary": "forearms" },
+    { "match": ["farmers walk", "farmer's walk", "farmer walk"],
+      "primary": "forearms", "secondary": ["traps", "glutes"] },
+    { "match": ["gripper", "grip crush", "plate pinch"], "primary": "forearms" },
+
+    { "match": ["leg curl", "nordic"], "primary": "hamstrings", "secondary": ["calves"] },
+    { "match": ["leg extension"], "primary": "quadriceps" },
+    { "match": ["leg press", "hack squat"],
+      "primary": "quadriceps", "secondary": ["glutes", "hamstrings"] },
+
+    { "match": ["rowing machine", "^row \\(machine\\)$", "treadmill", "elliptical",
+                "stair", "exercise bike", "cycling", "^running", "^walking",
+                "jump rope", "ski erg", "^swimming", "^cardio"],
+      "primary": "cardio" },
+
+    { "match": ["sit up", "sit-up", "crunch", "plank", "russian twist", "leg raise",
+                "knee raise", "toes to bar", "hanging", "ab wheel", "ab scissors",
+                "dead bug", "mountain climber", "woodchop", "cable twist", "^ab ",
+                "oblique"],
+      "primary": "abdominals" },
+
+    { "match": ["hip adduction", "adductor", "thigh adduction"], "primary": "adductors" },
+    { "match": ["hip abduction", "abductor", "thigh abduction"], "primary": "abductors" },
+    { "match": ["hip thrust", "glute bridge", "glute kickback", "hip extension",
+                "^glute"],
+      "primary": "glutes", "secondary": ["hamstrings"] },
+    { "match": ["back extension", "hyperextension", "good morning"],
+      "primary": "lower_back", "secondary": ["glutes", "hamstrings"] },
+
+    { "match": ["shrug", "upright row"], "primary": "traps", "secondary": ["shoulders"] },
+    { "match": ["face pull"], "primary": "shoulders", "secondary": ["upper_back", "traps"] },
+    { "match": ["rear delt", "reverse fly", "rear fly"],
+      "primary": "shoulders", "secondary": ["upper_back"] },
+    { "match": ["lateral raise", "side raise", "front raise", "^raise \\(dumbbell\\)"],
+      "primary": "shoulders" },
+    { "match": ["shoulder press", "overhead press", "military press", "arnold press",
+                "^ohp", "strict press", "push press", "landmine press"],
+      "primary": "shoulders", "secondary": ["triceps"] },
+
+    { "match": ["chest dip"], "primary": "chest", "secondary": ["triceps", "shoulders"] },
+    { "match": ["chest fly", "pec deck", "^fly \\(", "cable crossover", "svend press"],
+      "primary": "chest", "secondary": ["shoulders"] },
+    { "match": ["chest press", "bench press", "push up", "push-up", "^pushup"],
+      "primary": "chest", "secondary": ["triceps", "shoulders"] },
+
+    { "match": ["^dip", "triceps dip", "tricep dip", "jm press", "close.?grip bench"],
+      "primary": "triceps", "secondary": ["chest", "shoulders"] },
+    { "match": ["pushdown", "skull crusher", "skullcrusher", "overhead extension",
+                "tricep", "triceps", "kickback \\(dumbbell\\)"],
+      "primary": "triceps" },
+
+    { "match": ["preacher curl", "bicep curl", "biceps curl", "hammer curl",
+                "concentration curl", "incline curl", "spider curl", "drag curl",
+                "curl \\(barbell\\)", "curl \\(dumbbell\\)", "curl \\(cable\\)",
+                "curl \\(ez bar\\)", "curl \\(machine\\)"],
+      "primary": "biceps", "secondary": ["forearms"] },
+
+    { "match": ["pulldown", "pull up", "pull-up", "^pullup", "chin up", "chin-up",
+                "pullover", "straight arm"],
+      "primary": "lats", "secondary": ["biceps", "upper_back"] },
+
+    { "match": ["t bar row", "t-bar row", "cable row", "seated row", "bent over row",
+                "barbell row", "dumbbell row", "pendlay row", "meadows row",
+                "chest supported row", "inverted row", "machine row", " row"],
+      "primary": "upper_back", "secondary": ["lats", "biceps"] },
+
+    { "match": ["romanian deadlift", "^rdl", "stiff leg", "single leg deadlift"],
+      "primary": "hamstrings", "secondary": ["glutes", "lower_back"] },
+    { "match": ["deadlift"],
+      "primary": "hamstrings", "secondary": ["glutes", "lower_back", "upper_back"] },
+
+    { "match": ["bulgarian split squat", "split squat", "lunge", "step up", "step-up"],
+      "primary": "quadriceps", "secondary": ["glutes", "hamstrings"] },
+    { "match": ["zercher squat", "front squat"],
+      "primary": "quadriceps", "secondary": ["glutes", "upper_back", "lower_back"] },
+    { "match": ["squat", "pistol", "sissy"],
+      "primary": "quadriceps", "secondary": ["glutes", "hamstrings", "lower_back"] },
+
+    { "match": ["clean", "snatch", "^jerk", "thruster", "burpee"],
+      "primary": "full_body", "secondary": ["quadriceps", "shoulders"] },
+    { "match": ["neck"], "primary": "neck" }
+  ]
+}
