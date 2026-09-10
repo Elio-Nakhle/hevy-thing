@@ -112,6 +112,54 @@ def test_uncomments_a_commented_key_rather_than_duplicating_it(tmp_path: Path) -
     assert "# UNITS=kg" in text
 
 
+def test_writes_to_the_assignment_that_actually_wins(tmp_path: Path) -> None:
+    """The bug this ordering exists for. dotenv gives effect to the last
+    assignment of a key, so writing to the first is a silent no-op whenever
+    anything sits below it - which is where you land by copying .env.example,
+    whose keys are all present and commented, then typing a value at the end."""
+    env = tmp_path / ".env"
+    env.write_text(
+        "# TRAINING_GOAL=hypertrophy  # hypertrophy | strength | powerlifting\n"
+        "\n"
+        "TRAINING_GOAL=powerlifting\n"
+    )
+
+    profile.write_env(env, {"TRAINING_GOAL": "strength"})
+
+    lines = env.read_text().splitlines()
+    live = [line for line in lines if line.startswith("TRAINING_GOAL=")]
+    assert live == ["TRAINING_GOAL=strength"]
+    # The template line above it is documentation and stays commented.
+    assert lines[0].startswith("# TRAINING_GOAL=")
+
+
+def test_an_earlier_live_duplicate_is_commented_out(tmp_path: Path) -> None:
+    """It was shadowed before the write and after it, but two live lines
+    disagreeing about the same key next to a value we just wrote is a trap."""
+    env = tmp_path / ".env"
+    env.write_text("BODYWEIGHT_KG=70\nSEX=male\nBODYWEIGHT_KG=82\n")
+
+    profile.write_env(env, {"BODYWEIGHT_KG": "91"})
+
+    text = env.read_text()
+    assert [line for line in text.splitlines() if line.startswith("BODYWEIGHT_KG=")] == [
+        "BODYWEIGHT_KG=91"
+    ]
+    # Not deleted - the old value stays readable.
+    assert "# BODYWEIGHT_KG=70" in text
+
+
+def test_a_saved_profile_is_actually_what_loads_back(tmp_path: Path) -> None:
+    """End to end over the duplicate case: the point of writing the file is
+    that Settings reads back what was written."""
+    env = tmp_path / ".env"
+    env.write_text("# BODYWEIGHT_KG=82\nBODYWEIGHT_KG=70\n")
+
+    profile.write_env(env, {"BODYWEIGHT_KG": "91"})
+
+    assert Settings(_env_file=env).bodyweight_kg == 91.0  # type: ignore[call-arg]
+
+
 def test_preserves_unrelated_lines_and_comments(tmp_path: Path) -> None:
     env = tmp_path / ".env"
     env.write_text(

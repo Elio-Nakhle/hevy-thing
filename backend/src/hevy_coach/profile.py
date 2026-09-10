@@ -154,19 +154,37 @@ def write_env(path: Path, values: Mapping[str, str]) -> None:
     leave the file saying two different things about the same key. A trailing
     comment on the line is documentation, so it survives the edit, and a line
     whose value is already correct is not rewritten at all.
+
+    The file is walked **backwards**, because dotenv gives effect to the *last*
+    assignment of a key and that is therefore the only one worth writing to.
+    Editing the first match instead is a silent no-op whenever anything sits
+    below it, which is a state a user reaches by the obvious route: copy
+    ``.env.example``, whose keys are all present and commented, then type a
+    value at the end of the file. The form then wrote the commented line near
+    the top while the hand-typed one below went on winning.
     """
     lines = path.read_text().splitlines() if path.is_file() else []
     remaining = dict(values)
 
-    for index, line in enumerate(lines):
-        match = _ASSIGNMENT.match(line)
-        if match is None or (key := match["key"]) not in remaining:
+    for index in reversed(range(len(lines))):
+        match = _ASSIGNMENT.match(lines[index])
+        if match is None:
             continue
-        value = remaining.pop(key)
-        rest = match["rest"]
-        if not line.lstrip().startswith("#") and rest.partition("#")[0].strip() == value:
-            continue  # already says exactly this; leave the formatting alone
-        lines[index] = f"{key}={value}{_trailing_comment(rest)}"
+        key = match["key"]
+        commented = lines[index].lstrip().startswith("#")
+
+        if key in remaining:
+            value = remaining.pop(key)
+            rest = match["rest"]
+            if not commented and rest.partition("#")[0].strip() == value:
+                continue  # already says exactly this; leave the formatting alone
+            lines[index] = f"{key}={value}{_trailing_comment(rest)}"
+        elif key in values and not commented:
+            # An earlier live assignment of a key already written further down.
+            # It was shadowed before this write and is shadowed after it, but
+            # leaving two live lines contradicting each other is a trap, and
+            # commenting it out keeps the old value visible.
+            lines[index] = f"# {lines[index].lstrip()}"
 
     if remaining:
         if lines and lines[-1].strip():
