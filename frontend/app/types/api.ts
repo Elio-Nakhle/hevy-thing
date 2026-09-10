@@ -121,6 +121,9 @@ export interface Headline {
   lifts_up: number
   lifts_flat: number
   lifts_down: number
+  lifts_up_names: string[]
+  lifts_flat_names: string[]
+  lifts_down_names: string[]
   /** Median of the per-lift trends, percent per month. Median, not mean: one
    *  accessory taken from 12 kg to 73 kg reads as +82% and would carry the lot. */
   median_change_pct_per_month: number | null

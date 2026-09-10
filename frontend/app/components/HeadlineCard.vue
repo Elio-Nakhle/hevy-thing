@@ -29,6 +29,8 @@ const basis = computed(() => {
   const lifts = data.lifts_tracked === 1 ? '1 lift' : `${data.lifts_tracked} lifts`
   return `From a trend line through ${lifts} with enough sessions in the last ${weeks} weeks.`
 })
+
+const names = (lifts: string[]) => lifts.join(', ')
 </script>
 
 <template>
@@ -38,7 +40,32 @@ const basis = computed(() => {
       <span class="badge" :style="{ background: verdict.colour }">{{ verdict.label }}</span>
     </div>
 
-    <p class="answer">{{ headline.answer }}</p>
+    <p class="answer">
+      <template v-if="headline.verdict === 'insufficient_data'">
+        {{ headline.answer }}
+      </template>
+      <template v-else-if="headline.verdict === 'progressing'">
+        Yes. Your typical lift is up {{ headline.median_change_pct_per_month?.toFixed(1) }}% a month -
+      </template>
+      <template v-else-if="headline.verdict === 'slipping'">
+        Not right now. Your typical lift is down {{ Math.abs(headline.median_change_pct_per_month ?? 0).toFixed(1) }}% a month -
+      </template>
+      <template v-else-if="headline.verdict === 'holding'">
+        Holding. Your typical lift moves {{ (headline.median_change_pct_per_month ?? 0) >= 0 ? '+' : '' }}{{ headline.median_change_pct_per_month?.toFixed(1) }}% a month -
+      </template>
+      <template v-if="headline.lifts_up">
+        <span class="lift-category" :title="names(headline.lifts_up_names)">
+          {{ headline.lifts_up }} of {{ headline.lifts_tracked }} climbing</span><template v-if="headline.lifts_down">, </template>
+      </template>
+      <template v-if="headline.lifts_down">
+        <span class="lift-category" :title="names(headline.lifts_down_names)">
+          {{ headline.lifts_down }} sliding</span>
+      </template>
+      <template v-if="!headline.lifts_up && !headline.lifts_down">
+        <span class="lift-category" :title="names(headline.lifts_flat_names)">
+          none of {{ headline.lifts_tracked }} clearly either way</span>
+      </template>
+    </p>
 
     <p v-if="basis" class="basis muted">
       {{ basis }} See <NuxtLink to="/strength">Strength standards</NuxtLink> for how that
@@ -89,6 +116,11 @@ const basis = computed(() => {
   line-height: 1.3;
   letter-spacing: -0.01em;
   max-width: 60ch;
+}
+
+.lift-category {
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
 }
 
 .basis {

@@ -65,6 +65,9 @@ class Headline:
     lifts_up: int
     lifts_flat: int
     lifts_down: int
+    lifts_up_names: list[str]
+    lifts_flat_names: list[str]
+    lifts_down_names: list[str]
     #: Median of the per-lift trends, in percent per month. Median, not mean -
     #: see the module docstring.
     median_change_pct_per_month: float | None
@@ -102,6 +105,13 @@ def headline(
     up = sum(1 for trend in trends if trend.trend == "progressing")
     down = sum(1 for trend in trends if trend.trend == "regressing")
     flat = len(trends) - up - down
+    up_names = [trend.title for trend in trends if trend.trend == "progressing"]
+    down_names = [trend.title for trend in trends if trend.trend == "regressing"]
+    flat_names = [
+        trend.title
+        for trend in trends
+        if trend.trend not in ("progressing", "regressing")
+    ]
 
     if not trends:
         answer = _nothing_to_say(db, days)
@@ -124,6 +134,9 @@ def headline(
         lifts_up=up,
         lifts_flat=flat,
         lifts_down=down,
+        lifts_up_names=up_names,
+        lifts_flat_names=flat_names,
+        lifts_down_names=down_names,
         median_change_pct_per_month=middle,
         window_days=days,
         next_up=_next_up(db, settings),
