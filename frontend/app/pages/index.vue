@@ -2,6 +2,7 @@
 /** Dashboard: headline stats, volume over time, muscle balance, and findings. */
 import { computed, ref } from 'vue'
 import type {
+  Headline,
   Health,
   Insight,
   MuscleVolume,
@@ -29,6 +30,7 @@ const { data: muscles } = await useFetch<MuscleVolume[]>('/api/volume/muscle-gro
 const { data: insights } = await useFetch<Insight[]>('/api/insights', { query: { days: 180 } })
 const { data: records } = await useFetch<PersonalRecord[]>('/api/records', { query: { days: 180, limit: 6 } })
 
+const { data: headline } = await useFetch<Headline>('/api/headline')
 const { data: health } = await useFetch<Health>('/api/health')
 const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
@@ -79,6 +81,8 @@ const severityColor: Record<string, string> = {
     />
 
     <template v-else>
+      <HeadlineCard :headline="headline" class="lead" />
+
       <ProfileForm v-if="askForProfile" first-run class="setup" />
 
       <div class="grid grid-4 tiles" :class="{ stale: overviewPending }">
@@ -88,20 +92,19 @@ const severityColor: Record<string, string> = {
           :spark="spark"
         />
         <StatTile
-          label="Total volume"
           :value="compact(convert(overview?.total_volume_kg ?? 0))"
           :unit="unit"
           :delta="volumeDelta"
           delta-label="vs previous 4 weeks"
-        />
-        <StatTile
-          label="Sessions per week"
-          :value="String(overview?.avg_workouts_per_week ?? 0)"
-        />
-        <StatTile
-          label="Working sets"
-          :value="compact(overview?.total_sets ?? 0)"
-        />
+        >
+          <template #label>Total <Term id="volume" /></template>
+        </StatTile>
+        <StatTile :value="String(overview?.avg_workouts_per_week ?? 0)">
+          <template #label><Term id="sessions_per_week" capitalize /></template>
+        </StatTile>
+        <StatTile :value="compact(overview?.total_sets ?? 0)">
+          <template #label><Term id="working_set" capitalize />s</template>
+        </StatTile>
       </div>
 
       <div class="filters">
@@ -123,17 +126,24 @@ const severityColor: Record<string, string> = {
 
       <div class="grid grid-2">
         <ChartCard
-          title="Weekly training volume"
-          subtitle="Tonnage per week from working sets. Warm-ups excluded."
           :empty="bars.length === 0"
         >
+          <template #title>Weekly <Term id="volume" /></template>
+          <template #subtitle>
+            Weight moved per week across <Term id="working_set" />s. Warm-ups excluded.
+          </template>
           <div :class="{ stale: weeklyPending }">
             <ColumnChart :bars="bars" :unit="unit" />
           </div>
           <template #table>
             <table class="data-table">
               <thead>
-                <tr><th>Week of</th><th>Volume ({{ unit }})</th><th>Sets</th><th>Sessions</th></tr>
+                <tr>
+                  <th>Week of</th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                  <th>Sets</th>
+                  <th>Sessions</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="week in [...(weekly ?? [])].reverse()" :key="week.week">
@@ -149,14 +159,21 @@ const severityColor: Record<string, string> = {
 
         <ChartCard
           title="Muscle balance"
-          subtitle="Working sets per week over the last 4 weeks. Secondary muscles count as half a set."
           :empty="(muscles ?? []).length === 0"
         >
+          <template #subtitle>
+            <Term id="sets_per_week" capitalize /> over the last 4 weeks. An exercise's
+            secondary muscles count as half a set each.
+          </template>
           <MuscleVolumeChart :groups="muscles ?? []" />
           <template #table>
             <table class="data-table">
               <thead>
-                <tr><th>Muscle group</th><th>Sets/week</th><th>Volume ({{ unit }})</th></tr>
+                <tr>
+                  <th>Muscle group</th>
+                  <th><Term id="sets_per_week" capitalize /></th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="group in muscles ?? []" :key="group.muscle_group">
@@ -189,12 +206,21 @@ const severityColor: Record<string, string> = {
         </section>
 
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Recent personal records</h2></div>
-          <p class="card-sub">Sessions where estimated 1RM beat everything before it.</p>
+          <div class="card-head">
+            <h2 class="card-title">Recent <Term id="pr" />s</h2>
+          </div>
+          <p class="card-sub">
+            Sessions where your <Term id="e1rm" /> beat everything before it.
+          </p>
           <p v-if="(records ?? []).length === 0" class="empty">No PRs in the last 180 days.</p>
           <table v-else class="data-table">
             <thead>
-              <tr><th>Exercise</th><th>Set</th><th>e1RM</th><th>Date</th></tr>
+              <tr>
+                <th>Exercise</th>
+                <th>Set</th>
+                <th><Term id="e1rm" capitalize /></th>
+                <th>Date</th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="record in records ?? []" :key="`${record.template_id}${record.date}`">
@@ -219,6 +245,10 @@ const severityColor: Record<string, string> = {
   gap: 16px;
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.lead {
+  margin-bottom: 16px;
 }
 
 .setup {

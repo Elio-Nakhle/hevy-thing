@@ -42,6 +42,16 @@ upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
 - **Coach** - Claude with read-only tools over the log, so answers come from
   your actual numbers.
 
+Two things about how it reads. The dashboard **leads with one sentence** - are
+you getting stronger, and what changes next session - measured against your own
+past self, with the percentile kept on the strength page where you go looking
+for it. And every derived number carries **where it came from**: hover any term
+for a one-line account of how it was computed and what not to trust about it,
+or hit **Plain** in the header to rename the whole surface (`e1RM` becomes
+"estimated best single"). Both come from one table,
+[`provenance.py`](backend/src/hevy_coach/provenance.py), so a tooltip cannot
+describe something other than what its label says.
+
 ## Getting your data in
 
 The developer API needs a Hevy Pro subscription; the CSV export does not, so

@@ -10,8 +10,9 @@ from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from hevy_coach import csv_import
+from hevy_coach import csv_import, provenance
 from hevy_coach import profile as profile_module
+from hevy_coach.analytics import headline as headline_module
 from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
 from hevy_coach.analytics.standards import available_lifts, bands_for
@@ -226,6 +227,25 @@ def get_trends(db: DbDep, settings: SettingsDep, days: int = 180) -> list[dict[s
 @app.get("/api/insights")
 def get_insights(db: DbDep, settings: SettingsDep, days: int = 180) -> list[dict[str, Any]]:
     return [asdict(i) for i in progression.insights(db, settings, days=days)]
+
+
+@app.get("/api/headline")
+def get_headline(
+    db: DbDep, settings: SettingsDep, days: int = headline_module.DEFAULT_WINDOW_DAYS
+) -> dict[str, Any]:
+    """"Am I getting stronger, and what changes next session" in one sentence."""
+    return asdict(headline_module.headline(db, settings, days=days))
+
+
+@app.get("/api/glossary")
+def get_glossary() -> dict[str, dict[str, Any]]:
+    """Where every derived number comes from, and its plain-language name.
+
+    One table serves both: the frontend renames the surface with ``plain`` and
+    uses ``detail`` as the hover text, so a term's tooltip cannot describe
+    something other than what the label says.
+    """
+    return provenance.glossary()
 
 
 # -- sessions ---------------------------------------------------------------

@@ -91,13 +91,16 @@ const maxMuscleSets = computed(() =>
 
       <div class="grid grid-4 tiles">
         <StatTile
-          label="Volume"
           :value="amount(detail.volume_kg, 0)"
           :unit="unit"
           :delta="detail.routine.volume_delta_pct"
           delta-label="vs previous run"
-        />
-        <StatTile label="Working sets" :value="String(detail.sets)" />
+        >
+          <template #label><Term id="volume" capitalize /></template>
+        </StatTile>
+        <StatTile :value="String(detail.sets)">
+          <template #label><Term id="working_set" capitalize />s</template>
+        </StatTile>
         <StatTile
           label="Duration"
           :value="detail.duration_minutes ? String(Math.round(detail.duration_minutes)) : '-'"
@@ -119,9 +122,10 @@ const maxMuscleSets = computed(() =>
           <h2 class="card-title">Next time you run {{ detail.title }}</h2>
         </div>
         <p class="card-sub">
-          Double progression: hold the load until every working set reaches the top of its
-          rep range, then add the smallest increment your history shows you actually use
-          and drop back to the bottom of the range.
+          <Term id="prescription" capitalize />: hold the load until every
+          <Term id="working_set" /> reaches the top of its <Term id="rep_range" />, then add
+          the <Term id="load_step" /> your history shows you actually use and drop back to
+          the bottom of the range. <NuxtLink to="/next">Take it to the rack</NuxtLink>.
         </p>
 
         <p v-if="planned.length === 0" class="empty">
@@ -177,7 +181,7 @@ const maxMuscleSets = computed(() =>
               <NuxtLink :to="`/exercises/${block.template_id}`" class="ex-link">
                 {{ block.title }}
               </NuxtLink>
-              <span v-if="block.is_pr" class="pr">best e1RM</span>
+              <span v-if="block.is_pr" class="pr">best <Term id="e1rm" /></span>
             </h3>
             <p class="secondary meta">
               <template v-if="block.muscle_group">{{ titleCase(block.muscle_group) }} &middot; </template>
@@ -196,13 +200,18 @@ const maxMuscleSets = computed(() =>
           <div>
             <table class="data-table">
               <thead>
-                <tr><th>Set</th><th>Load ({{ unit }})</th><th>Reps</th><th>e1RM ({{ unit }})</th></tr>
+                <tr>
+                  <th>Set</th>
+                  <th>Load ({{ unit }})</th>
+                  <th>Reps</th>
+                  <th><Term id="e1rm" capitalize /> ({{ unit }})</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="set in block.sets" :key="set.set_index" :class="{ ramp: !set.is_top }">
                   <td>
                     {{ set.set_index + 1 }}
-                    <span v-if="!set.is_top" class="muted"> ramp</span>
+                    <span v-if="!set.is_top" class="muted"> <Term id="ramp_up" /></span>
                   </td>
                   <td>
                     <template v-if="set.weight_kg !== null">{{ amount(set.weight_kg) }}</template>
@@ -228,7 +237,7 @@ const maxMuscleSets = computed(() =>
                   </dd>
                 </div>
                 <div>
-                  <dt>e1RM</dt>
+                  <dt><Term id="e1rm" capitalize /></dt>
                   <dd :style="{ color: (block.e1rm_delta_kg ?? 0) >= 0 ? 'var(--success-text)' : 'var(--critical)' }">
                     <template v-if="block.e1rm_delta_kg !== null">
                       {{ block.e1rm_delta_kg >= 0 ? '+' : '' }}{{ amount(block.e1rm_delta_kg) }} {{ unit }}
@@ -237,7 +246,7 @@ const maxMuscleSets = computed(() =>
                   </dd>
                 </div>
                 <div>
-                  <dt>Volume</dt>
+                  <dt><Term id="volume" capitalize /></dt>
                   <dd>
                     <template v-if="block.volume_delta_pct !== null">
                       {{ block.volume_delta_pct >= 0 ? '+' : '' }}{{ block.volume_delta_pct.toFixed(0) }}%
@@ -254,8 +263,8 @@ const maxMuscleSets = computed(() =>
               <p class="rec-line">{{ prescription(block) }}</p>
               <p class="secondary rec-why">{{ block.recommendation.detail }}</p>
               <p v-if="ramp(block)" class="secondary rec-why">
-                Ramp-up sets ({{ ramp(block) }}) are reported but left out of the decision -
-                only the sets at the top load count as working sets.
+                <Term id="ramp_up" capitalize />s ({{ ramp(block) }}) are reported but left
+                out of the decision - only the sets at the top load drive it.
               </p>
             </div>
           </div>

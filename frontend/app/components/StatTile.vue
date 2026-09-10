@@ -9,7 +9,8 @@ import { computed } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    label: string
+    /** Plain text label. Omit and use the `label` slot to attach provenance. */
+    label?: string
     value: string
     unit?: string
     /** Signed percentage change against a named period. */
@@ -61,7 +62,7 @@ const sparkEnd = computed(() => {
 
 <template>
   <div class="card tile">
-    <span class="tile-label">{{ label }}</span>
+    <span class="tile-label"><slot name="label">{{ label }}</slot></span>
     <div class="tile-value-row">
       <span class="tile-value">{{ value }}<span v-if="unit" class="tile-unit">{{ unit }}</span></span>
       <svg

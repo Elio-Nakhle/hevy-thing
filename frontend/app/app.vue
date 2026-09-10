@@ -2,10 +2,14 @@
 import { onMounted, ref } from 'vue'
 
 const theme = ref<'light' | 'dark' | 'system'>('system')
+const { plain, togglePlain, restorePlain } = useGlossary()
 
 onMounted(() => {
   const stored = localStorage.getItem('hevy-coach-theme')
   if (stored === 'light' || stored === 'dark') applyTheme(stored)
+  // Read after mount, not during setup: the server has no localStorage, and
+  // deciding the wording during render would make the two disagree.
+  restorePlain()
 })
 
 function applyTheme(next: 'light' | 'dark' | 'system') {
@@ -45,6 +49,17 @@ const links = [
             {{ link.label }}
           </NuxtLink>
         </nav>
+        <button
+          class="btn toggle"
+          type="button"
+          :title="plain
+            ? 'Switch to the technical names for each number'
+            : 'Rename every number in plain English'"
+          :aria-pressed="plain"
+          @click="togglePlain"
+        >
+          {{ plain ? 'Plain' : 'Technical' }}
+        </button>
         <button class="btn toggle" type="button" @click="cycleTheme">
           {{ theme === 'system' ? 'Auto' : theme === 'dark' ? 'Dark' : 'Light' }}
         </button>

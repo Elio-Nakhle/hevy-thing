@@ -71,16 +71,24 @@ const volumeBars = computed(() =>
 
       <div class="grid grid-2">
         <ChartCard
-          title="Estimated 1RM"
-          subtitle="Best working set per session, converted with the Epley formula."
           :empty="e1rmPoints.length === 0"
-          empty-message="No scorable sets - e1RM needs both a load and a rep count."
+          empty-message="No scorable sets - an estimate needs both a load and a rep count."
         >
+          <template #title><Term id="e1rm" capitalize /></template>
+          <template #subtitle>
+            Best <Term id="working_set" /> per session, converted with the Epley formula.
+          </template>
           <LineChart :points="e1rmPoints" :height="250" :unit="unit" />
           <template #table>
             <table class="data-table">
               <thead>
-                <tr><th>Date</th><th>Top set ({{ unit }})</th><th>e1RM</th><th>Sets</th><th>Volume ({{ unit }})</th></tr>
+                <tr>
+                  <th>Date</th>
+                  <th>Top set ({{ unit }})</th>
+                  <th><Term id="e1rm" capitalize /></th>
+                  <th>Sets</th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="point in [...(history ?? [])].reverse()" :key="point.workout_id">
@@ -100,15 +108,21 @@ const volumeBars = computed(() =>
           </template>
         </ChartCard>
 
-        <ChartCard
-          title="Volume per session"
-          subtitle="Load times reps across working sets."
-          :empty="volumeBars.length === 0"
-        >
+        <ChartCard :empty="volumeBars.length === 0">
+          <template #title><Term id="volume" capitalize /> per session</template>
+          <template #subtitle>
+            Load times reps across <Term id="working_set" />s.
+          </template>
           <ColumnChart :bars="volumeBars" :height="250" :unit="unit" />
           <template #table>
             <table class="data-table">
-              <thead><tr><th>Date</th><th>Volume ({{ unit }})</th><th>Sets</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                  <th>Sets</th>
+                </tr>
+              </thead>
               <tbody>
                 <tr v-for="point in [...(history ?? [])].reverse()" :key="`v${point.workout_id}`">
                   <td>{{ fullDate(point.date) }}</td>

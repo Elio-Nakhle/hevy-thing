@@ -83,6 +83,49 @@ export interface ImportResult {
   summary: string
 }
 
+/** One entry in the provenance glossary. See `backend/src/hevy_coach/provenance.py`. */
+export interface Term {
+  key: string
+  /** The technical name, shown when plain-language mode is off. */
+  term: string
+  /** What to call it in plain-language mode. */
+  plain: string
+  /** One line: where the number comes from, and what not to trust about it. */
+  detail: string
+  /** Attribution, where the number is not ours. */
+  source: string | null
+}
+
+export type Glossary = Record<string, Term>
+
+export type Verdict = 'progressing' | 'holding' | 'slipping' | 'insufficient_data'
+
+/** What changes the next time you train. */
+export interface NextUp {
+  title: string
+  workout_id: string
+  days_since: number
+  exercises: number
+  /** The prescriptions that change something, one line each. */
+  changes: string[]
+  summary: string
+}
+
+/** The dashboard's lead: "am I getting stronger", answered in one sentence. */
+export interface Headline {
+  verdict: Verdict
+  answer: string
+  lifts_tracked: number
+  lifts_up: number
+  lifts_flat: number
+  lifts_down: number
+  /** Median of the per-lift trends, percent per month. Median, not mean: one
+   *  accessory taken from 12 kg to 73 kg reads as +82% and would carry the lot. */
+  median_change_pct_per_month: number | null
+  window_days: number
+  next_up: NextUp | null
+}
+
 /** A routine and how long it has been waiting. */
 export interface RoutineDue {
   title: string

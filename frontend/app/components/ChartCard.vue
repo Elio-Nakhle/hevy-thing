@@ -7,7 +7,8 @@
 import { ref } from 'vue'
 
 defineProps<{
-  title: string
+  /** Plain text title. Omit and use the `title` slot to attach provenance. */
+  title?: string
   subtitle?: string
   /** Set when there is nothing to plot, so the card explains itself. */
   empty?: boolean
@@ -20,7 +21,7 @@ const showTable = ref(false)
 <template>
   <section class="card">
     <div class="card-head">
-      <h2 class="card-title">{{ title }}</h2>
+      <h2 class="card-title"><slot name="title">{{ title }}</slot></h2>
       <button
         v-if="!empty && $slots.table"
         class="link-quiet"
@@ -31,7 +32,9 @@ const showTable = ref(false)
         {{ showTable ? 'Chart' : 'Table' }}
       </button>
     </div>
-    <p v-if="subtitle" class="card-sub">{{ subtitle }}</p>
+    <p v-if="subtitle || $slots.subtitle" class="card-sub">
+      <slot name="subtitle">{{ subtitle }}</slot>
+    </p>
 
     <p v-if="empty" class="empty">{{ emptyMessage || 'No data yet.' }}</p>
     <div v-else-if="showTable" class="scroll-x">

@@ -225,7 +225,35 @@ def test_the_profile_cannot_rewrite_unrelated_settings(
     assert response.status_code == 422
 
 
-# -- the next session --------------------------------------------------------
+# -- reading the log --------------------------------------------------------
+
+
+def test_the_headline_answers_before_anything_is_imported(client: TestClient) -> None:
+    """The dashboard leads with this, so it has to say something on day one."""
+    body = client.get("/api/headline").json()
+
+    assert body["verdict"] == "insufficient_data"
+    assert "Drop a Hevy CSV export" in body["answer"]
+    assert body["next_up"] is None
+
+
+def test_the_headline_fills_in_after_an_import(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    body = client.get("/api/headline").json()
+
+    assert body["verdict"] != "insufficient_data"
+    assert body["answer"]
+    assert body["window_days"] == 90
+    assert body["next_up"]["title"] == "Push"
+
+
+def test_the_glossary_explains_the_surface(client: TestClient) -> None:
+    body = client.get("/api/glossary").json()
+
+    assert body["e1rm"]["plain"] == "estimated best single"
+    assert body["e1rm"]["detail"].endswith(".")
+    assert body["level"]["source"] == "strengthlevel.com"
 
 
 def test_next_session_needs_a_log(client: TestClient) -> None:
