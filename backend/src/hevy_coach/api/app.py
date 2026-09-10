@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -81,24 +81,66 @@ def profile(db: DbDep, settings: SettingsDep) -> dict[str, Any]:
 # -- import -----------------------------------------------------------------
 
 
+#: An upload larger than this is refused before it is read into memory. A CSV
+#: export of a decade of daily training is single-digit megabytes; anything at
+#: this size is not a Hevy export.
+MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+
+
 @app.post("/api/import")
 async def run_import(
     db: DbDep,
     settings: SettingsDep,
+    file: Annotated[
+        UploadFile | None, File(description="A Hevy CSV export to upload and import")
+    ] = None,
     prune: Annotated[
         bool, Query(description="Drop workouts the export no longer contains")
     ] = True,
 ) -> dict[str, Any]:
-    """Import the newest CSV export in the workouts folder."""
+    """Import a Hevy CSV export.
+
+    With a file, the upload is stored in the workouts folder and imported from
+    there, so the browser and the CLI stay pointed at the same history. Without
+    one, the newest export already in that folder is imported.
+    """
+    if file is not None and (file.size or 0) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB, "
+            "which is far bigger than any Hevy export.",
+        )
+    data = await file.read() if file is not None else None
+
     try:
         # Parsing and the insert loop are both blocking, so keep them off the
         # event loop.
-        result = await asyncio.to_thread(csv_import.import_export, settings, db, prune=prune)
+        result = await asyncio.to_thread(
+            _import, settings, db, prune, None if data is None else (file.filename or "", data)
+        )
     except csv_import.ExportError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        # An ExportError means two different things here: with an upload it is a
+        # bad file the caller sent, without one it is an empty workouts folder.
+        raise HTTPException(status_code=422 if data is not None else 404, detail=str(exc)) from exc
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="That file is not text. Upload the CSV Hevy exports, not a zip or a PDF.",
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"import failed: {exc}") from exc
     return asdict(result) | {"summary": result.summary()}
+
+
+def _import(
+    settings: Settings,
+    db: Database,
+    prune: bool,
+    upload: tuple[str, bytes] | None,
+) -> csv_import.ImportResult:
+    """Blocking half of :func:`run_import`, so one thread hop covers both steps."""
+    path = csv_import.save_upload(settings.workouts_dir, *upload) if upload else None
+    return csv_import.import_export(settings, db, path=path, prune=prune)
 
 
 # -- analytics --------------------------------------------------------------

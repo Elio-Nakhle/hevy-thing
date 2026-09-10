@@ -3,7 +3,9 @@
 Hevy's developer API needs a Pro subscription; the CSV export (Settings ->
 Export Data) does not, so it is what this project ingests. Drop exports into
 ``workouts_dir`` and the newest file there is the one that gets imported - no
-renaming, no configuration per export.
+renaming, no configuration per export. An export uploaded through the web UI
+lands in the same folder (see ``save_upload``), so the browser and the CLI read
+from one place rather than two.
 
 Two things the CSV lacks and this module reconstructs:
 
@@ -98,6 +100,58 @@ def latest_export(directory: Path) -> Path:
             "(Profile -> Settings -> Export Data) and save the file there."
         )
     return max(candidates, key=lambda p: (p.stat().st_mtime, p.name))
+
+
+# -- accepting an upload ----------------------------------------------------
+
+
+def _upload_name(filename: str) -> str:
+    """A filesystem-safe name for an uploaded export.
+
+    Only the basename survives, so a crafted ``../`` path cannot escape the
+    workouts folder, and only ``[A-Za-z0-9._-]`` survives that.
+    """
+    name = Path(filename or "").name
+    if not name.lower().endswith(".csv"):
+        raise ExportError(
+            f"{name or 'That file'} is not a CSV. Export from Hevy "
+            "(Profile -> Settings -> Export Data) and upload the file it gives you."
+        )
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", name[:-4]).strip("-._")
+    return f"{stem or 'export'}.csv"
+
+
+def save_upload(directory: Path, filename: str, data: bytes) -> Path:
+    """Store an uploaded export in ``directory`` and return where it landed.
+
+    Written to a hidden ``.part`` file and parsed before it is moved into place,
+    for two reasons: a name collision replaces a good export with a newer one
+    only once the newer one is known to be readable, and a half-written or
+    non-Hevy file never becomes what the next folder import picks up. The
+    staging name is dot-prefixed and not ``*.csv``, so :func:`latest_export`
+    would not see it even if the process died mid-write.
+    """
+    name = _upload_name(filename)
+    directory.mkdir(parents=True, exist_ok=True)
+    staged = directory / f".{name}.part"
+
+    try:
+        staged.write_bytes(data)
+        workouts, _ = parse_export(staged)
+        if not workouts:
+            raise ExportError(f"{name} contains no workouts.")
+    except ExportError as exc:
+        staged.unlink(missing_ok=True)
+        # parse_export names the file it was handed, which is the staging name.
+        # The uploader has never heard of it, so say the name they chose.
+        raise ExportError(str(exc).replace(staged.name, name)) from exc
+    except Exception:
+        staged.unlink(missing_ok=True)
+        raise
+
+    target = directory / name
+    staged.replace(target)
+    return target
 
 
 # -- muscle groups ----------------------------------------------------------

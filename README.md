@@ -8,9 +8,9 @@ serves them to a Nuxt frontend and a CLI. Everything runs locally against your
 own data.
 
 ```
-workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
-                                          \->  CLI
-                                          \->  Claude (coach)
+upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
+                                                    \->  CLI
+                                                    \->  Claude (coach)
 ```
 
 ## What it does
@@ -42,14 +42,22 @@ workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
 The developer API needs a Hevy Pro subscription; the CSV export does not, so
 that is what this reads.
 
-1. In the Hevy app: **Profile -> Settings -> Export Data**. You get a CSV by
-   email.
-2. Drop it in [`workouts/`](workouts/). Any filename works.
-3. Import it - the **newest CSV in the folder** is the one that gets read:
+In the Hevy app: **Profile -> Settings -> Export Data**. You get a CSV by email.
+Then either:
 
-   ```bash
-   cd backend && uv run hevy-coach import
-   ```
+**In the browser.** Drop the CSV on the dashboard, or click **Import CSV** in the
+header. No terminal.
+
+**On the command line.** Drop the file in [`workouts/`](workouts/) - any filename
+works - and run the import. The **newest CSV in the folder** is the one that gets
+read.
+
+```bash
+cd backend && uv run hevy-coach import
+```
+
+The two are the same path: an upload is saved into `workouts/` and imported from
+there, so the browser and the CLI always agree about which export is current.
 
 Re-importing is safe: workout identity is derived from the start time, so an
 updated export updates rows rather than duplicating them. An export is your

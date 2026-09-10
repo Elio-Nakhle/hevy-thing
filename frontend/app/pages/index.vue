@@ -3,7 +3,6 @@
 import { computed, ref } from 'vue'
 import type {
   Health,
-  ImportResult,
   Insight,
   MuscleVolume,
   Overview,
@@ -30,30 +29,6 @@ const { data: insights } = await useFetch<Insight[]>('/api/insights', { query: {
 const { data: records } = await useFetch<PersonalRecord[]>('/api/records', { query: { days: 180, limit: 6 } })
 
 const { data: health } = await useFetch<Health>('/api/health')
-
-const importing = ref(false)
-const importMessage = ref('')
-
-/** Import the newest CSV export sitting in the backend's workouts folder. */
-async function runImport() {
-  importing.value = true
-  importMessage.value = ''
-  try {
-    const result = await $fetch<ImportResult>('/api/import', { method: 'POST' })
-    importMessage.value = result.summary
-    await refreshNuxtData()
-  } catch (error: unknown) {
-    const failure = error as { data?: { detail?: string }; statusCode?: number }
-    // A 502 is the dev proxy telling us nothing is listening on the API port.
-    importMessage.value =
-      failure?.data?.detail
-      ?? (failure?.statusCode === 502
-        ? 'Cannot reach the API - start it with `uv run hevy-coach serve`.'
-        : 'Import failed.')
-  } finally {
-    importing.value = false
-  }
-}
 
 const bars = computed(() =>
   (weekly.value ?? []).map((week) => ({ label: week.week_start, value: convert(week.volume_kg) })),
@@ -82,34 +57,20 @@ const severityColor: Record<string, string> = {
   <div>
     <div class="page-head">
       <h1>Dashboard</h1>
-      <div class="head-actions">
-        <span v-if="importMessage" class="secondary import-msg">{{ importMessage }}</span>
-        <span v-else-if="health?.imported_file" class="secondary import-msg">
-          {{ health.imported_file }}
-        </span>
-        <button
-          class="btn btn-primary"
-          type="button"
-          :disabled="importing"
-          :title="health?.available_export
-            ? `Import ${health.available_export}`
-            : 'Import the newest CSV export in the workouts folder'"
-          @click="runImport"
-        >
-          {{ importing ? 'Importing...' : 'Import export' }}
-        </button>
-      </div>
+      <ImportDropzone
+        v-if="overview?.workouts"
+        compact
+        :hint="health?.imported_file"
+        :available-export="health?.available_export"
+        @imported="refreshNuxtData()"
+      />
     </div>
 
-    <div v-if="overview && overview.workouts === 0" class="card empty-state">
-      <h2>No training data yet</h2>
-      <p class="secondary">
-        Export your history from Hevy (Profile &rarr; Settings &rarr; Export Data), drop the
-        CSV into the <code>workouts/</code> folder and press <strong>Import export</strong> -
-        the newest file there is the one that gets read. To try the app without an export,
-        run <code>uv run hevy-coach demo</code> in the backend.
-      </p>
-    </div>
+    <ImportDropzone
+      v-if="!overview?.workouts"
+      :available-export="health?.available_export"
+      @imported="refreshNuxtData()"
+    />
 
     <template v-else>
       <div class="grid grid-4 tiles" :class="{ stale: overviewPending }">
@@ -252,39 +213,12 @@ const severityColor: Record<string, string> = {
   flex-wrap: wrap;
 }
 
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.import-msg {
-  font-size: 12px;
-}
-
 .tiles {
   margin-bottom: 20px;
 }
 
 .second-row {
   margin-top: 16px;
-}
-
-.empty-state {
-  padding: 40px;
-  text-align: center;
-}
-
-.empty-state p {
-  margin: 10px auto 0;
-  max-width: 46ch;
-}
-
-code {
-  font-size: 12px;
-  background: var(--page);
-  padding: 2px 6px;
-  border-radius: 5px;
 }
 
 .insight-list {
