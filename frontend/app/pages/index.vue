@@ -7,6 +7,7 @@ import type {
   MuscleVolume,
   Overview,
   PersonalRecord,
+  Profile,
   WeeklyVolume,
 } from '~/types/api'
 import { compact, fullDate, titleCase } from '~/utils/format'
@@ -29,6 +30,11 @@ const { data: insights } = await useFetch<Insight[]>('/api/insights', { query: {
 const { data: records } = await useFetch<PersonalRecord[]>('/api/records', { query: { days: 180, limit: 6 } })
 
 const { data: health } = await useFetch<Health>('/api/health')
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
+
+/** Ask for the profile once there is a log for it to be wrong about - a form in
+ *  front of an empty dashboard is friction before any payoff. */
+const askForProfile = computed(() => Boolean(overview.value?.workouts && profile.value?.needs_setup))
 
 const bars = computed(() =>
   (weekly.value ?? []).map((week) => ({ label: week.week_start, value: convert(week.volume_kg) })),
@@ -73,6 +79,8 @@ const severityColor: Record<string, string> = {
     />
 
     <template v-else>
+      <ProfileForm v-if="askForProfile" first-run class="setup" />
+
       <div class="grid grid-4 tiles" :class="{ stale: overviewPending }">
         <StatTile
           label="Workouts"
@@ -211,6 +219,11 @@ const severityColor: Record<string, string> = {
   gap: 16px;
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.setup {
+  margin-bottom: 20px;
+  border-left: 3px solid var(--warning);
 }
 
 .tiles {

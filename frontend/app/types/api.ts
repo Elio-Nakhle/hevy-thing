@@ -24,13 +24,51 @@ export interface Health {
   available_export: string | null
 }
 
+export type Sex = 'male' | 'female'
+export type Units = 'kg' | 'lb'
+export type DumbbellLoad = 'per_dumbbell' | 'combined'
+export type Goal = 'hypertrophy' | 'strength' | 'powerlifting'
+
+/** Fields of the profile the setup form writes. Keys of `Profile.unset`. */
+export type ProfileField =
+  | 'sex'
+  | 'bodyweight_kg'
+  | 'birth_date'
+  | 'units'
+  | 'dumbbell_load'
+  | 'training_goal'
+
 export interface Profile {
-  sex: 'male' | 'female'
+  sex: Sex
+  /** The bodyweight the analysis uses; a logged measurement outranks the configured one. */
   bodyweight_kg: number
-  bodyweight_source: 'measured' | 'configured'
+  bodyweight_source: 'measured' | 'configured' | 'default'
+  /** What the user typed, which is what the form has to show. */
+  configured_bodyweight_kg: number
+  birth_date: string | null
   age: number | null
-  units: 'kg' | 'lb'
+  units: Units
+  dumbbell_load: DumbbellLoad
+  training_goal: Goal
+  training_goal_summary: string
   coach_model: string
+  /** Profile fields nobody supplied, so a default is standing in. */
+  unset: ProfileField[]
+  /** True while something the analysis leans on is still a stand-in. */
+  needs_setup: boolean
+  /** Absolute path of the .env file a save lands in. */
+  env_file: string
+}
+
+/** What choosing a training goal changes, from `goals.py`. */
+export interface GoalProfile {
+  name: Goal
+  summary: string
+  low_weekly_sets: number | null
+  min_heavy_sets_per_week: number | null
+  min_main_lift_frequency: number | null
+  main_lifts: string[]
+  tracks_total: boolean
 }
 
 export interface ImportResult {

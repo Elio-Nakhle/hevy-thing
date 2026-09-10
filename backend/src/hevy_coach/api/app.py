@@ -11,12 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from hevy_coach import csv_import
+from hevy_coach import profile as profile_module
 from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
 from hevy_coach.analytics.standards import available_lifts, bands_for
 from hevy_coach.coach.agent import Coach
 from hevy_coach.config import Settings, get_settings
 from hevy_coach.db import Database
+from hevy_coach.goals import PROFILES
 
 app = FastAPI(
     title="Hevy Coach API",
@@ -66,16 +68,51 @@ def _available_export(settings: Settings) -> str | None:
 
 
 @app.get("/api/profile")
-def profile(db: DbDep, settings: SettingsDep) -> dict[str, Any]:
-    measured = db.latest_bodyweight()
-    return {
-        "sex": settings.sex,
-        "bodyweight_kg": measured or settings.bodyweight_kg,
-        "bodyweight_source": "measured" if measured else "configured",
-        "age": round(settings.age, 1) if settings.age else None,
-        "units": settings.units,
-        "coach_model": settings.coach_model,
-    }
+def get_profile(db: DbDep, settings: SettingsDep) -> dict[str, Any]:
+    return profile_module.describe(settings, db.latest_bodyweight())
+
+
+@app.put("/api/profile")
+def put_profile(
+    update: profile_module.ProfileUpdate, db: DbDep, settings: SettingsDep
+) -> dict[str, Any]:
+    """Save the lifter profile to the .env file the CLI reads too.
+
+    Omitted fields are left as they are, so the form can save one answer at a
+    time without resetting the rest.
+    """
+    if not update.model_dump(exclude_none=True):
+        raise HTTPException(status_code=422, detail="Nothing to save.")
+    try:
+        saved = profile_module.save(update)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not write {profile_module.env_path()}: {exc}",
+        ) from exc
+    return profile_module.describe(saved, db.latest_bodyweight())
+
+
+@app.get("/api/goals")
+def get_goals() -> list[dict[str, Any]]:
+    """The training goals and what choosing each one changes.
+
+    Served rather than restated in the frontend: these thresholds are training
+    doctrine with reasons attached (see goals.py), and a second copy in the UI
+    would drift from the one the analytics actually use.
+    """
+    return [
+        {
+            "name": goal.name,
+            "summary": goal.summary,
+            "low_weekly_sets": goal.low_weekly_sets,
+            "min_heavy_sets_per_week": goal.min_heavy_sets_per_week,
+            "min_main_lift_frequency": goal.min_main_lift_frequency,
+            "main_lifts": list(goal.main_lifts),
+            "tracks_total": goal.tracks_total,
+        }
+        for goal in PROFILES.values()
+    ]
 
 
 # -- import -----------------------------------------------------------------

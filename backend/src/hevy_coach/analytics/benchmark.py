@@ -96,10 +96,10 @@ def benchmark(
     if source == "default":
         caveats.append(
             f"Every level below was scored at the placeholder bodyweight of "
-            f"{bodyweight:g} kg - no body measurement is logged and BODYWEIGHT_KG is "
-            f"unset. The standards are indexed on bodyweight, so this is the single "
-            f"biggest thing skewing the classifications: set BODYWEIGHT_KG in .env "
-            f"(or log a weight in Hevy) and re-read the report."
+            f"{bodyweight:g} kg - nobody has said what the lifter weighs and no body "
+            f"measurement is logged. The standards are indexed on bodyweight, so this "
+            f"is the single biggest thing skewing the classifications: fill in the "
+            f"lifter profile (Settings, or BODYWEIGHT_KG in .env) and re-read the report."
         )
 
     # One standard, potentially several logged exercises: a V-grip and a bar-grip

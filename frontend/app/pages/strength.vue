@@ -34,6 +34,10 @@ const overallPct = computed(() =>
 
     <section v-if="caveats.length" class="card caveat-card">
       <p v-for="(caveat, i) in caveats" :key="i" class="caveat">{{ caveat }}</p>
+      <p v-if="report?.bodyweight_source === 'default'" class="caveat">
+        <NuxtLink to="/settings">Set your bodyweight</NuxtLink> and every band below is
+        recomputed.
+      </p>
     </section>
 
     <section v-if="overall !== null" class="card hero-card">

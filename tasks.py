@@ -69,7 +69,7 @@ def setup(c: Context) -> None:
     """One-time setup: .env, Python deps, node deps."""
     if not (ROOT / ".env").exists():
         c.run(f"cp {ROOT / '.env.example'} {ROOT / '.env'}")
-        print(".env created - set your bodyweight, sex and birth date in it.")
+        print(".env created. The app asks for your lifter profile on first run.")
     with c.cd(BACKEND):
         c.run("uv sync")
     with c.cd(FRONTEND):

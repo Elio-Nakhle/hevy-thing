@@ -30,6 +30,7 @@ const links = [
   { to: '/strength', label: 'Strength' },
   { to: '/exercises', label: 'Exercises' },
   { to: '/coach', label: 'Coach' },
+  { to: '/settings', label: 'Settings' },
 ]
 </script>
 

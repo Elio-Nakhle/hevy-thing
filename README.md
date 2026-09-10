@@ -73,7 +73,7 @@ uv tool install invoke    # task runner; `inv --list` for everything below
 inv setup                 # copies .env.example, uv sync, npm install
 ```
 
-Then set your bodyweight, sex and birth date in `.env`. Without invoke:
+Without invoke:
 
 ```bash
 cp .env.example .env
@@ -81,14 +81,28 @@ cd backend && uv sync
 cd ../frontend && npm install
 ```
 
-`.env` is read from the repository root. The setting you really need is your
-bodyweight: every standard is indexed on it, so leaving it unset falls back to a
-placeholder 80 kg and shifts your levels by whole bands. The report says
-`(default)` and prints a caveat when that happens.
+Nothing needs editing by hand. The app asks for the lifter profile on first run
+and writes your answers to `.env` (read from the repository root), which is also
+what the CLI reads - so there is one place a value can come from. **Settings**
+edits it later.
 
-Set `DUMBBELL_LOAD=combined` if you type the pair's total weight for
-two-dumbbell movements. The tables are published per dumbbell - what Hevy asks
-for - so a combined log otherwise scores at double.
+### Why it asks
+
+Six values decide what most of the analysis *says*:
+
+| Value | What it changes |
+| --- | --- |
+| **Bodyweight** | Every standard is indexed on it. On the log in this repo, the placeholder 80 kg reads as *novice* and the real 55 kg as *advanced* - the same lifts, two whole bands apart. |
+| **Sex** | Which published table each lift is scored against. |
+| **Training goal** | Every volume and frequency threshold in `goals.py`. Switching hypertrophy to powerlifting on that same log turns 25 findings into 15 and swaps a low-volume warning for heavy-exposure and main-lift-frequency ones. |
+| **Birth date** | Enables the age adjustment on the standards. Optional. |
+| **Dumbbell loads** | `combined` if you type the pair's total. The tables are published per dumbbell - what Hevy asks for - so a combined log otherwise scores at double. |
+| **Units** | Display only. Everything is stored and calculated in kilograms. |
+
+A key commented out in `.env` is *unset*, which the app tells apart from a value
+you chose: unset is what makes it offer the form, and what makes the strength
+page admit a number is a stand-in rather than presenting it as yours. Only
+bodyweight is required - it is the one answer that cannot be guessed.
 
 ## Running it
 

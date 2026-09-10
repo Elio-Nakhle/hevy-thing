@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,6 +20,23 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 Sex = Literal["male", "female"]
+Units = Literal["kg", "lb"]
+#: Kilograms, bounded to catch a typo or a wrong field rather than to police a
+#: plausible bodyweight - 181 lb is 82 kg and also a real 181 kg lifter, so no
+#: range can tell those apart. Converting pounds to kilograms is the form's job.
+#: Shared with the profile form so the API rejects what the loader would have.
+BodyweightKg = Annotated[float, Field(gt=20, lt=300)]
+
+#: The lifter-profile fields the setup form asks for and writes to .env. Order
+#: is the order the form presents them in.
+PROFILE_FIELDS = (
+    "sex",
+    "bodyweight_kg",
+    "birth_date",
+    "units",
+    "dumbbell_load",
+    "training_goal",
+)
 
 
 class Settings(BaseSettings):
@@ -50,13 +67,13 @@ class Settings(BaseSettings):
     # What the log is for. Changes which findings the analytics report and the
     # thresholds they use - see hevy_coach/goals.py.
     training_goal: Goal = "hypertrophy"
-    bodyweight_kg: float = Field(default=80.0, gt=20, lt=300)
+    bodyweight_kg: BodyweightKg = 80.0
     # How you type the load for a two-dumbbell movement. The standards are
     # published per dumbbell, which is also what Hevy asks for; set this to
     # "combined" if you enter the pair's total instead.
     dumbbell_load: DumbbellLoad = "per_dumbbell"
     birth_date: date | None = None
-    units: Literal["kg", "lb"] = "kg"
+    units: Units = "kg"
 
     # --- Server -------------------------------------------------------------
     cors_origins: list[str] = ["http://localhost:3000"]
@@ -69,6 +86,16 @@ class Settings(BaseSettings):
         return value
 
     @property
+    def unset_profile_fields(self) -> tuple[str, ...]:
+        """Profile fields nothing supplied, so a class default is standing in.
+
+        This is what lets the app tell "the lifter weighs 80 kg" apart from
+        "nobody has said what the lifter weighs", which are the same value and
+        very different claims.
+        """
+        return tuple(name for name in PROFILE_FIELDS if name not in self.model_fields_set)
+
+    @property
     def bodyweight_is_default(self) -> bool:
         """True when nothing supplied a bodyweight and the class default stands.
 
@@ -78,7 +105,7 @@ class Settings(BaseSettings):
         Callers use this to say the figure is a placeholder rather than present
         it as the lifter's.
         """
-        return "bodyweight_kg" not in self.model_fields_set
+        return "bodyweight_kg" in self.unset_profile_fields
 
     @property
     def age(self) -> float | None:
