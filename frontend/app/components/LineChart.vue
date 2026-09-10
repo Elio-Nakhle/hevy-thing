@@ -154,7 +154,7 @@ const tooltipX = computed(() => {
 </script>
 
 <template>
-  <div ref="wrap" class="chart-wrap">
+  <div ref="wrap" class="w-full">
     <svg
       v-if="scaled"
       :width="width"
@@ -162,6 +162,7 @@ const tooltipX = computed(() => {
       :viewBox="`0 0 ${width} ${height}`"
       role="img"
       :aria-label="`Line chart, ${points.length} sessions`"
+      class="block overflow-visible"
       @mousemove="onMove"
       @mouseleave="hover = null"
     >
@@ -185,7 +186,7 @@ const tooltipX = computed(() => {
         :x="PAD.left - 8"
         :y="tick.y + 4"
         text-anchor="end"
-        class="axis"
+        class="fill-subtle text-[11px] tabular-nums"
       >
         {{ Math.round(tick.v).toLocaleString() }}
       </text>
@@ -196,7 +197,7 @@ const tooltipX = computed(() => {
         :x="node.cx"
         :y="height - 8"
         text-anchor="middle"
-        class="axis"
+        class="fill-subtle text-[11px] tabular-nums"
       >
         {{ shortDate(node.date) }}
       </text>
@@ -237,7 +238,7 @@ const tooltipX = computed(() => {
           :x="node.cx + (node.cx > PAD.left + plot.w - 40 ? -8 : 8)"
           :y="node.cy - 8"
           :text-anchor="node.cx > PAD.left + plot.w - 40 ? 'end' : 'start'"
-          class="value-label"
+          class="fill-foreground text-[11px] font-semibold"
         >
           {{ Math.round(node.value) }}
         </text>
@@ -263,13 +264,13 @@ const tooltipX = computed(() => {
         />
         <g :transform="`translate(${tooltipX}, ${Math.max(PAD.top, active.cy - 34)})`">
           <rect width="106" height="34" rx="6" fill="var(--overlay)" />
-          <text x="8" y="14" class="tip-label">{{ shortDate(active.date) }}</text>
-          <text x="8" y="27" class="tip-value">{{ active.value.toFixed(1) }} {{ unit }}</text>
+          <text x="8" y="14" class="fill-white text-[10px] opacity-75">{{ shortDate(active.date) }}</text>
+          <text x="8" y="27" class="fill-white text-xs font-semibold">{{ active.value.toFixed(1) }} {{ unit }}</text>
         </g>
       </g>
     </svg>
 
-    <p v-if="trend" class="trend-note secondary">
+    <p v-if="trend" class="text-muted-foreground mt-2 mb-0 text-xs">
       Trend
       <strong :style="{ color: trend.perMonth >= 0 ? 'var(--success-text)' : 'var(--critical)' }">
         {{ trend.perMonth >= 0 ? '+' : '' }}{{ trend.perMonth.toFixed(1) }} {{ unit }}/month
@@ -277,43 +278,3 @@ const tooltipX = computed(() => {
     </p>
   </div>
 </template>
-
-<style scoped>
-.chart-wrap {
-  width: 100%;
-}
-
-svg {
-  display: block;
-  overflow: visible;
-}
-
-.axis {
-  fill: var(--text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.value-label {
-  fill: var(--text-primary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.tip-label {
-  fill: #fff;
-  opacity: 0.75;
-  font-size: 10px;
-}
-
-.tip-value {
-  fill: #fff;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.trend-note {
-  margin: 8px 0 0;
-  font-size: 12px;
-}
-</style>

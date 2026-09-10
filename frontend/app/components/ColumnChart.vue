@@ -83,7 +83,7 @@ function barPath(x: number, y: number, w: number, h: number): string {
 </script>
 
 <template>
-  <div ref="wrap" class="chart-wrap">
+  <div ref="wrap" class="w-full">
     <svg
       v-if="scaled"
       :width="width"
@@ -91,6 +91,7 @@ function barPath(x: number, y: number, w: number, h: number): string {
       :viewBox="`0 0 ${width} ${height}`"
       role="img"
       :aria-label="`Column chart, ${bars.length} periods`"
+      class="block overflow-visible"
       @mouseleave="hover = null"
     >
       <line
@@ -109,7 +110,7 @@ function barPath(x: number, y: number, w: number, h: number): string {
         :x="PAD.left - 8"
         :y="tick.y + 4"
         text-anchor="end"
-        class="axis"
+        class="fill-subtle text-[11px] tabular-nums"
       >
         {{ compact(tick.v) }}
       </text>
@@ -148,47 +149,18 @@ function barPath(x: number, y: number, w: number, h: number): string {
         :x="item.bandX + item.band / 2"
         :y="height - 8"
         text-anchor="middle"
-        class="axis"
+        class="fill-subtle text-[11px] tabular-nums"
       >
         {{ shortDate(item.label) }}
       </text>
 
       <g v-if="active" :transform="`translate(${Math.min(active.bandX, PAD.left + plot.w - 118)}, ${Math.max(2, active.y - 40)})`">
         <rect width="118" height="36" rx="6" fill="var(--overlay)" />
-        <text x="8" y="14" class="tip-label">{{ shortDate(active.label) }}</text>
-        <text x="8" y="28" class="tip-value">
+        <text x="8" y="14" class="fill-white text-[10px] opacity-75">{{ shortDate(active.label) }}</text>
+        <text x="8" y="28" class="fill-white text-xs font-semibold">
           {{ Math.round(active.value).toLocaleString() }} {{ unit }}
         </text>
       </g>
     </svg>
   </div>
 </template>
-
-<style scoped>
-.chart-wrap {
-  width: 100%;
-}
-
-svg {
-  display: block;
-  overflow: visible;
-}
-
-.axis {
-  fill: var(--text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.tip-label {
-  fill: #fff;
-  opacity: 0.75;
-  font-size: 10px;
-}
-
-.tip-value {
-  fill: #fff;
-  font-size: 12px;
-  font-weight: 600;
-}
-</style>

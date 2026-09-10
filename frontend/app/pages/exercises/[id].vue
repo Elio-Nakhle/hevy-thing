@@ -38,38 +38,57 @@ const volumeBars = computed(() =>
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="mb-[18px] flex flex-wrap items-end justify-between gap-4">
       <div>
-        <NuxtLink to="/exercises" class="back secondary">&larr; Exercises</NuxtLink>
+        <NuxtLink
+          to="/exercises"
+          class="text-muted-foreground mb-1 inline-block text-xs no-underline hover:underline hover:underline-offset-[3px]"
+        >
+          &larr; Exercises
+        </NuxtLink>
         <h1>{{ summary?.title ?? templateId }}</h1>
       </div>
-      <div v-if="summary" class="head-stats secondary">
+      <div v-if="summary" class="text-muted-foreground text-[13px]">
         {{ summary.sessions }} sessions - {{ summary.sets }} working sets -
         best {{ weight(summary.best_e1rm_kg) }}
       </div>
     </div>
 
-    <p v-if="error" class="card empty">
-      No sets logged for this exercise.
-    </p>
+    <Card v-if="error">
+      <CardContent>
+        <p class="text-muted-foreground py-7 text-center text-[13px]">
+          No sets logged for this exercise.
+        </p>
+      </CardContent>
+    </Card>
 
     <template v-else>
-      <section v-if="standard" class="card standard-card">
-        <div class="card-head"><h2 class="card-title">Against the standards</h2></div>
-        <StandardsRow
-          :title="standard.title"
-          :e1rm="standard.score.e1rm_kg"
-          :level-score="standard.score.level_score"
-          :level="standard.score.level"
-          :thresholds="standard.score.thresholds"
-          :next-level="standard.score.next_level"
-          :kg-to-next="standard.score.kg_to_next_level"
-          show-scale
-        />
-        <p v-for="note in standard.score.notes" :key="note" class="note secondary">{{ note }}</p>
-      </section>
+      <Card v-if="standard" class="mb-4">
+        <CardHeader>
+          <CardTitle>Against the standards</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StandardsRow
+            :title="standard.title"
+            :e1rm="standard.score.e1rm_kg"
+            :level-score="standard.score.level_score"
+            :level="standard.score.level"
+            :thresholds="standard.score.thresholds"
+            :next-level="standard.score.next_level"
+            :kg-to-next="standard.score.kg_to_next_level"
+            show-scale
+          />
+          <p
+            v-for="note in standard.score.notes"
+            :key="note"
+            class="text-muted-foreground mt-2.5 mb-0 text-xs"
+          >
+            {{ note }}
+          </p>
+        </CardContent>
+      </Card>
 
-      <div class="grid grid-2">
+      <div class="grid gap-4 md:grid-cols-2">
         <ChartCard
           :empty="e1rmPoints.length === 0"
           empty-message="No scorable sets - an estimate needs both a load and a rep count."
@@ -80,31 +99,31 @@ const volumeBars = computed(() =>
           </template>
           <LineChart :points="e1rmPoints" :height="250" :unit="unit" />
           <template #table>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Top set ({{ unit }})</th>
-                  <th><Term id="e1rm" capitalize /></th>
-                  <th>Sets</th>
-                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="point in [...(history ?? [])].reverse()" :key="point.workout_id">
-                  <td>{{ fullDate(point.date) }}</td>
-                  <td>
+            <Table class="numeric-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Top set ({{ unit }})</TableHead>
+                  <TableHead><Term id="e1rm" capitalize /></TableHead>
+                  <TableHead>Sets</TableHead>
+                  <TableHead><Term id="volume" capitalize /> ({{ unit }})</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="point in [...(history ?? [])].reverse()" :key="point.workout_id">
+                  <TableCell>{{ fullDate(point.date) }}</TableCell>
+                  <TableCell>
                     <template v-if="point.best_weight_kg !== null">
                       {{ amount(point.best_weight_kg) }} x {{ point.top_set_reps }}
                     </template>
-                    <span v-else class="muted">-</span>
-                  </td>
-                  <td>{{ weight(point.best_e1rm_kg) }}</td>
-                  <td>{{ point.sets }}</td>
-                  <td>{{ amount(point.volume_kg, 0) }}</td>
-                </tr>
-              </tbody>
-            </table>
+                    <span v-else class="text-subtle">-</span>
+                  </TableCell>
+                  <TableCell>{{ weight(point.best_e1rm_kg) }}</TableCell>
+                  <TableCell>{{ point.sets }}</TableCell>
+                  <TableCell>{{ amount(point.volume_kg, 0) }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </template>
         </ChartCard>
 
@@ -115,61 +134,25 @@ const volumeBars = computed(() =>
           </template>
           <ColumnChart :bars="volumeBars" :height="250" :unit="unit" />
           <template #table>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
-                  <th>Sets</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="point in [...(history ?? [])].reverse()" :key="`v${point.workout_id}`">
-                  <td>{{ fullDate(point.date) }}</td>
-                  <td>{{ amount(point.volume_kg, 0) }}</td>
-                  <td>{{ point.sets }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <Table class="numeric-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead><Term id="volume" capitalize /> ({{ unit }})</TableHead>
+                  <TableHead>Sets</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="point in [...(history ?? [])].reverse()" :key="`v${point.workout_id}`">
+                  <TableCell>{{ fullDate(point.date) }}</TableCell>
+                  <TableCell>{{ amount(point.volume_kg, 0) }}</TableCell>
+                  <TableCell>{{ point.sets }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </template>
         </ChartCard>
       </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-
-.back {
-  display: inline-block;
-  font-size: 12px;
-  text-decoration: none;
-  margin-bottom: 4px;
-}
-
-.back:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.head-stats {
-  font-size: 13px;
-}
-
-.standard-card {
-  margin-bottom: 16px;
-}
-
-.note {
-  margin: 10px 0 0;
-  font-size: 12px;
-}
-</style>

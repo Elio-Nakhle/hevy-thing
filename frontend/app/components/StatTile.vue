@@ -61,13 +61,15 @@ const sparkEnd = computed(() => {
 </script>
 
 <template>
-  <div class="card tile">
-    <span class="tile-label"><slot name="label">{{ label }}</slot></span>
-    <div class="tile-value-row">
-      <span class="tile-value">{{ value }}<span v-if="unit" class="tile-unit">{{ unit }}</span></span>
+  <Card class="gap-1.5 px-[18px] pt-4 pb-4">
+    <span class="text-muted-foreground text-xs"><slot name="label">{{ label }}</slot></span>
+    <div class="flex items-end justify-between gap-2.5">
+      <span class="text-[26px] leading-[1.1] font-semibold tracking-[-0.02em]">
+        {{ value }}<span v-if="unit" class="text-muted-foreground ml-[3px] text-[13px] font-medium">{{ unit }}</span>
+      </span>
       <svg
         v-if="sparkPath"
-        class="tile-spark"
+        class="shrink-0"
         :width="W"
         :height="H"
         :viewBox="`0 0 ${W} ${H}`"
@@ -78,52 +80,9 @@ const sparkEnd = computed(() => {
         <circle v-if="sparkEnd" :cx="sparkEnd.x" :cy="sparkEnd.y" r="2.5" fill="var(--series-1)" />
       </svg>
     </div>
-    <span v-if="delta !== null && delta !== undefined" class="tile-delta" :style="{ color: deltaColor }">
+    <span v-if="delta !== null && delta !== undefined" class="text-xs" :style="{ color: deltaColor }">
       {{ delta > 0 ? '+' : '' }}{{ delta.toFixed(1) }}%
-      <span class="muted">{{ deltaLabel }}</span>
+      <span class="text-subtle">{{ deltaLabel }}</span>
     </span>
-  </div>
+  </Card>
 </template>
-
-<style scoped>
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
-}
-
-.tile-label {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.tile-value-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.tile-value {
-  font-size: 26px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.tile-unit {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-left: 3px;
-}
-
-.tile-spark {
-  flex: none;
-}
-
-.tile-delta {
-  font-size: 12px;
-}
-</style>

@@ -1,7 +1,22 @@
+import tailwindcss from '@tailwindcss/vite'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
+
+  modules: ['shadcn-nuxt'],
+
+  // Components are copied into the repo, not imported from a package, so they
+  // are ours to edit - the point of shadcn.
+  shadcn: {
+    prefix: '',
+    componentDir: '~/components/ui',
+  },
+
+  vite: {
+    plugins: [tailwindcss()],
+  },
 
   runtimeConfig: {
     public: {

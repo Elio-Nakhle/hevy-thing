@@ -10,7 +10,10 @@
 import { ref } from 'vue'
 import type { ImportResult } from '~/types/api'
 
-defineProps<{
+// Named rather than bare: `compact` is also an auto-imported number formatter
+// from `utils/format`, and an unqualified `compact` in the template resolves to
+// whichever the tooling picks first.
+const props = defineProps<{
   /** One-row form for a page header. The default is the tall empty-state box. */
   compact?: boolean
   /** Export already in the workouts folder, from `/api/health`. */
@@ -82,148 +85,80 @@ function onDrop(event: DragEvent) {
 
 <template>
   <div
-    class="dz"
-    :class="{ compact, over: dragging }"
+    class="transition-[border-color,background] duration-[120ms]"
+    :class="[
+      props.compact
+        ? 'flex items-center gap-3 text-left'
+        : 'border-baseline bg-card rounded-lg border border-dashed px-6 pt-10 pb-8 text-center',
+      dragging && props.compact && 'ring-primary rounded-lg ring-2 ring-offset-6',
+      dragging && !props.compact && 'border-primary border-solid bg-[color-mix(in_srgb,var(--series-1)_7%,var(--surface-1))]',
+      /* While a file is over the box, let the drag through the contents - a
+         child swallowing dragleave is what makes drop zones flicker. */
+      dragging && '[&>*:not(input)]:pointer-events-none',
+    ]"
     @dragover.prevent="dragging = true"
     @dragleave.prevent="dragging = false"
     @drop.prevent="onDrop"
   >
+    <!-- Kept in the DOM rather than rebuilt per click, so `picker` is always there. -->
     <input
       ref="picker"
-      class="file-input"
+      class="hidden"
       type="file"
       accept=".csv,text/csv"
       @change="onPick"
     >
 
-    <template v-if="compact">
-      <span v-if="message" class="msg" :class="{ bad: failed }">{{ message }}</span>
-      <span v-else-if="hint" class="msg secondary">{{ hint }}</span>
-      <button
-        class="btn btn-primary"
-        type="button"
+    <template v-if="props.compact">
+      <span v-if="message" class="text-xs" :class="failed ? 'text-critical' : 'text-success'">
+        {{ message }}
+      </span>
+      <span v-else-if="hint" class="text-muted-foreground text-xs">{{ hint }}</span>
+      <Button
+        size="sm"
         :disabled="busy"
         title="Upload a Hevy CSV export"
         @click="picker?.click()"
       >
         {{ busy ? 'Importing...' : 'Import CSV' }}
-      </button>
+      </Button>
     </template>
 
     <template v-else>
       <h2>Import your training history</h2>
-      <p class="lede secondary">
+      <p class="text-muted-foreground mx-auto mt-2.5 max-w-[46ch] text-[13px]">
         In Hevy: <strong>Profile &rarr; Settings &rarr; Export Data</strong>. Drop the CSV it
         sends you anywhere in this box.
       </p>
-      <button
-        class="btn btn-primary choose"
-        type="button"
-        :disabled="busy"
-        @click="picker?.click()"
-      >
+      <Button class="mt-[18px]" :disabled="busy" @click="picker?.click()">
         {{ busy ? 'Importing...' : 'Choose a CSV file' }}
-      </button>
+      </Button>
 
-      <p v-if="message" class="msg block" :class="{ bad: failed }">{{ message }}</p>
+      <p
+        v-if="message"
+        class="mx-auto mt-4 max-w-[52ch] text-xs"
+        :class="failed ? 'text-critical' : 'text-success'"
+      >
+        {{ message }}
+      </p>
 
-      <p class="alt">
-        <button
+      <p class="mt-[18px] mb-0 text-xs">
+        <Button
           v-if="availableExport"
-          class="link-quiet"
-          type="button"
+          variant="link"
+          size="sm"
+          class="text-muted-foreground h-auto p-0 text-xs underline underline-offset-[3px]"
           :disabled="busy"
           @click="send()"
         >
           Or import {{ availableExport }} from the workouts folder
-        </button>
-        <span v-else class="muted">
-          No export yet? Run <code>uv run hevy-coach demo</code> for a synthetic log.
+        </Button>
+        <span v-else class="text-subtle">
+          No export yet? Run
+          <code class="bg-background rounded-[5px] px-1.5 py-0.5 text-xs">uv run hevy-coach demo</code>
+          for a synthetic log.
         </span>
       </p>
     </template>
   </div>
 </template>
-
-<style scoped>
-.dz {
-  border: 1px dashed var(--baseline);
-  border-radius: var(--radius);
-  background: var(--surface-1);
-  padding: 40px 24px 32px;
-  text-align: center;
-  transition: border-color 120ms ease, background 120ms ease;
-}
-
-.dz.over {
-  border-color: var(--series-1);
-  border-style: solid;
-  background: color-mix(in srgb, var(--series-1) 7%, var(--surface-1));
-}
-
-/* While a file is over the box, let the drag through the contents - a child
- * swallowing dragleave is what makes drop zones flicker. */
-.dz.over > *:not(.file-input) {
-  pointer-events: none;
-}
-
-.dz.compact {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-}
-
-.dz.compact.over {
-  outline: 2px solid var(--series-1);
-  outline-offset: 6px;
-  border-radius: 8px;
-  background: none;
-}
-
-/* Kept in the DOM rather than rebuilt per click, so `picker` is always there. */
-.file-input {
-  display: none;
-}
-
-.lede {
-  margin: 10px auto 0;
-  max-width: 46ch;
-  font-size: 13px;
-}
-
-.choose {
-  margin-top: 18px;
-  padding: 8px 16px;
-  font-size: 13px;
-}
-
-.msg {
-  font-size: 12px;
-}
-
-.msg.block {
-  margin: 16px auto 0;
-  max-width: 52ch;
-  color: var(--success-text);
-}
-
-.msg.bad {
-  color: var(--critical);
-}
-
-.alt {
-  margin: 18px 0 0;
-  font-size: 12px;
-}
-
-code {
-  font-size: 12px;
-  background: var(--page);
-  padding: 2px 6px;
-  border-radius: 5px;
-}
-</style>

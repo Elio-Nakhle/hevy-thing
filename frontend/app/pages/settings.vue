@@ -9,66 +9,46 @@ const { data: health } = await useFetch<Health>('/api/health')
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="mb-[18px] flex flex-wrap items-baseline justify-between gap-4">
       <h1>Settings</h1>
-      <p v-if="profile?.needs_setup" class="warn">Incomplete - some numbers are stand-ins.</p>
+      <p v-if="profile?.needs_setup" class="text-serious m-0 text-[13px]">
+        Incomplete - some numbers are stand-ins.
+      </p>
     </div>
 
     <ProfileForm />
 
-    <section class="card data-card">
-      <div class="card-head"><h2 class="card-title">Training log</h2></div>
-      <p class="card-sub">Import from the dashboard - drop a Hevy CSV export on it.</p>
-      <table class="data-table">
-        <tbody>
-          <tr>
-            <td>Workouts</td>
-            <td>{{ health?.workouts ?? 0 }}</td>
-          </tr>
-          <tr>
-            <td>Last workout</td>
-            <td>{{ fullDate(health?.last_workout) }}</td>
-          </tr>
-          <tr>
-            <td>Last import</td>
-            <td>{{ fullDate(health?.last_import) }}</td>
-          </tr>
-          <tr>
-            <td>Export read</td>
-            <td>{{ health?.imported_file ?? '-' }}</td>
-          </tr>
-          <tr>
-            <td>Coach model</td>
-            <td>{{ profile?.coach_model ?? '-' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <Card class="mt-4 max-w-[520px]">
+      <CardHeader>
+        <CardTitle>Training log</CardTitle>
+        <CardDescription>Import from the dashboard - drop a Hevy CSV export on it.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table class="numeric-table [&_td:last-child]:text-muted-foreground">
+          <TableBody>
+            <TableRow>
+              <TableCell>Workouts</TableCell>
+              <TableCell>{{ health?.workouts ?? 0 }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Last workout</TableCell>
+              <TableCell>{{ fullDate(health?.last_workout) }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Last import</TableCell>
+              <TableCell>{{ fullDate(health?.last_import) }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Export read</TableCell>
+              <TableCell>{{ health?.imported_file ?? '-' }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Coach model</TableCell>
+              <TableCell>{{ profile?.coach_model ?? '-' }}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   </div>
 </template>
-
-<style scoped>
-.page-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-
-.warn {
-  margin: 0;
-  font-size: 13px;
-  color: var(--serious);
-}
-
-.data-card {
-  margin-top: 16px;
-  max-width: 520px;
-}
-
-.data-table td:last-child {
-  color: var(--text-secondary);
-}
-</style>

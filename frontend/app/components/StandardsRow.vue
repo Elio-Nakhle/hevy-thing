@@ -74,11 +74,11 @@ const hovered = ref<string | null>(null)
 </script>
 
 <template>
-  <div ref="wrap" class="row">
-    <div class="row-head">
-      <span class="row-title">{{ title }}</span>
-      <span class="row-value">
-        {{ amount(e1rm) }} <span class="muted">{{ unitLabel }} e1RM</span>
+  <div ref="wrap" class="border-gridline border-b py-3 last:border-b-0">
+    <div class="mb-0.5 flex items-baseline justify-between gap-3">
+      <span class="text-[13px] font-medium">{{ title }}</span>
+      <span class="text-[13px] font-semibold tabular-nums">
+        {{ amount(e1rm) }} <span class="text-subtle">{{ unitLabel }} e1RM</span>
       </span>
     </div>
 
@@ -88,6 +88,7 @@ const hovered = ref<string | null>(null)
       :viewBox="`0 0 ${width} ${showScale ? BAND_H + 34 : BAND_H + 16}`"
       role="img"
       :aria-label="`${title}: ${e1rm.toFixed(1)} kilograms, ${level}, level score ${levelScore.toFixed(2)} of 4`"
+      class="block overflow-visible"
       @mouseleave="hovered = null"
     >
       <g>
@@ -135,23 +136,23 @@ const hovered = ref<string | null>(null)
           :x="band.x + band.w / 2"
           :y="BAND_H + 30"
           text-anchor="middle"
-          class="scale-label"
+          class="fill-subtle text-[10px]"
         >
           {{ band.name }}
         </text>
       </template>
     </svg>
 
-    <p class="row-foot">
-      <span class="level-chip">
-        <span class="chip-dot" :style="{ background: `var(--level-${Math.max(1, Math.min(5, Math.floor(levelScore) + 1))})` }" />
+    <p class="mt-1.5 mb-0 flex flex-wrap items-center gap-3 text-xs">
+      <span class="inline-flex items-center gap-1.5 font-medium capitalize">
+        <span class="inline-block size-2 rounded-full" :style="{ background: `var(--level-${Math.max(1, Math.min(5, Math.floor(levelScore) + 1))})` }" />
         {{ level }}
       </span>
-      <span class="secondary">score {{ levelScore.toFixed(2) }} / 4</span>
-      <span v-if="hovered" class="secondary">
+      <span class="text-muted-foreground">score {{ levelScore.toFixed(2) }} / 4</span>
+      <span v-if="hovered" class="text-muted-foreground">
         {{ hovered }} starts at {{ amount(thresholds[hovered]) }} {{ unitLabel }}
       </span>
-      <span v-else-if="nextLevel && kgToNext !== null && kgToNext !== undefined" class="secondary">
+      <span v-else-if="nextLevel && kgToNext !== null && kgToNext !== undefined" class="text-muted-foreground">
         +{{ amount(kgToNext) }} {{ unitLabel }} to {{ nextLevel }}
       </span>
     </p>
@@ -159,67 +160,3 @@ const hovered = ref<string | null>(null)
     <slot />
   </div>
 </template>
-
-<style scoped>
-.row {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--gridline);
-}
-
-.row:last-child {
-  border-bottom: 0;
-}
-
-.row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 2px;
-}
-
-.row-title {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.row-value {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-svg {
-  display: block;
-  overflow: visible;
-}
-
-.scale-label {
-  fill: var(--text-muted);
-  font-size: 10px;
-}
-
-.row-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin: 6px 0 0;
-  font-size: 12px;
-}
-
-.level-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-</style>

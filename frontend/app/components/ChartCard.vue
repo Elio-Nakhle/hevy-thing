@@ -19,27 +19,33 @@ const showTable = ref(false)
 </script>
 
 <template>
-  <section class="card">
-    <div class="card-head">
-      <h2 class="card-title"><slot name="title">{{ title }}</slot></h2>
-      <button
-        v-if="!empty && $slots.table"
-        class="link-quiet"
-        type="button"
-        :aria-pressed="showTable"
-        @click="showTable = !showTable"
-      >
-        {{ showTable ? 'Chart' : 'Table' }}
-      </button>
-    </div>
-    <p v-if="subtitle || $slots.subtitle" class="card-sub">
-      <slot name="subtitle">{{ subtitle }}</slot>
-    </p>
+  <Card>
+    <CardHeader>
+      <CardTitle><slot name="title">{{ title }}</slot></CardTitle>
+      <CardAction v-if="!empty && $slots.table">
+        <Button
+          variant="link"
+          size="sm"
+          class="text-muted-foreground h-auto p-0 text-xs underline underline-offset-[3px]"
+          :aria-pressed="showTable"
+          @click="showTable = !showTable"
+        >
+          {{ showTable ? 'Chart' : 'Table' }}
+        </Button>
+      </CardAction>
+      <CardDescription v-if="subtitle || $slots.subtitle">
+        <slot name="subtitle">{{ subtitle }}</slot>
+      </CardDescription>
+    </CardHeader>
 
-    <p v-if="empty" class="empty">{{ emptyMessage || 'No data yet.' }}</p>
-    <div v-else-if="showTable" class="scroll-x">
-      <slot name="table" />
-    </div>
-    <slot v-else />
-  </section>
+    <CardContent>
+      <p v-if="empty" class="text-muted-foreground py-7 text-center text-[13px]">
+        {{ emptyMessage || 'No data yet.' }}
+      </p>
+      <div v-else-if="showTable" class="overflow-x-auto">
+        <slot name="table" />
+      </div>
+      <slot v-else />
+    </CardContent>
+  </Card>
 </template>

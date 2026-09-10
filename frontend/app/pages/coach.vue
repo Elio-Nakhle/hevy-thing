@@ -82,185 +82,79 @@ function render(text: string): string {
 </script>
 
 <template>
-  <div class="coach">
-    <div class="page-head">
+  <div class="flex min-h-[calc(100vh-208px)] flex-col">
+    <div class="mb-4 flex flex-wrap items-baseline gap-3">
       <h1>Coach</h1>
-      <p class="secondary">Answers come from querying your actual training log.</p>
+      <p class="text-muted-foreground m-0 text-[13px]">
+        Answers come from querying your actual training log.
+      </p>
     </div>
 
-    <div ref="thread" class="thread card">
-      <div v-if="turns.length === 0" class="intro">
-        <p class="secondary">Ask about progression, programming, or where you stand.</p>
-        <div class="suggestions">
-          <button
-            v-for="suggestion in SUGGESTIONS"
-            :key="suggestion"
-            class="btn"
-            type="button"
-            @click="ask(suggestion)"
+    <!-- The scroller is the inner div, not the Card: `thread` has to be a real
+         element for `scrollTo`, and a component ref is an instance. -->
+    <Card class="flex-1 overflow-hidden py-0">
+      <div ref="thread" class="flex max-h-[calc(100vh-308px)] flex-col gap-3.5 overflow-y-auto p-5">
+        <div v-if="turns.length === 0" class="m-auto max-w-[460px] text-center">
+          <p class="text-muted-foreground">Ask about progression, programming, or where you stand.</p>
+          <div class="mt-4 flex flex-col gap-2">
+            <Button
+              v-for="suggestion in SUGGESTIONS"
+              :key="suggestion"
+              variant="outline"
+              class="h-auto justify-start py-2 text-left whitespace-normal"
+              @click="ask(suggestion)"
+            >
+              {{ suggestion }}
+            </Button>
+          </div>
+        </div>
+
+        <div
+          v-for="(turn, i) in turns"
+          :key="i"
+          class="flex"
+          :class="turn.role === 'user' ? 'justify-end' : ''"
+        >
+          <div
+            class="max-w-[76%] rounded-xl px-3.5 py-3 text-[13px]"
+            :class="[
+              turn.role === 'user'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background border',
+              turn.failed && 'border-critical',
+            ]"
           >
-            {{ suggestion }}
-          </button>
+            <div
+              v-if="turn.role === 'coach'"
+              class="[&_code]:bg-card [&_li]:mb-1 [&_p:last-child]:mb-0 [&_p]:mb-2.5
+                     [&_code]:rounded [&_code]:px-1.5 [&_code]:py-px [&_code]:text-xs
+                     [&_ul]:mb-2.5 [&_ul]:list-disc [&_ul]:pl-[18px]"
+              v-html="render(turn.text)"
+            />
+            <p v-else class="m-0">{{ turn.text }}</p>
+            <p v-if="turn.tools?.length" class="text-subtle mt-2.5 mb-0 text-[11px]">
+              Queried: {{ turn.tools.join(', ') }}
+            </p>
+          </div>
+        </div>
+
+        <div v-if="busy" class="flex">
+          <div class="bg-background text-muted-foreground max-w-[76%] rounded-xl border px-3.5 py-3 text-[13px]">
+            Reading your training log...
+          </div>
         </div>
       </div>
+    </Card>
 
-      <div v-for="(turn, i) in turns" :key="i" class="turn" :class="turn.role">
-        <div class="bubble" :class="{ failed: turn.failed }">
-          <div v-if="turn.role === 'coach'" class="prose" v-html="render(turn.text)" />
-          <p v-else class="user-text">{{ turn.text }}</p>
-          <p v-if="turn.tools?.length" class="tools muted">
-            Queried: {{ turn.tools.join(', ') }}
-          </p>
-        </div>
-      </div>
-
-      <div v-if="busy" class="turn coach">
-        <div class="bubble secondary">Reading your training log...</div>
-      </div>
-    </div>
-
-    <form class="composer" @submit.prevent="ask()">
-      <input
+    <form class="mt-3.5 flex gap-2" @submit.prevent="ask()">
+      <Input
         v-model="question"
         type="text"
+        class="h-10 flex-1 text-[13px]"
         placeholder="Ask about your training..."
         :disabled="busy"
       />
-      <button class="btn btn-primary" type="submit" :disabled="busy || !question.trim()">
-        Ask
-      </button>
+      <Button type="submit" class="h-10" :disabled="busy || !question.trim()">Ask</Button>
     </form>
   </div>
 </template>
-
-<style scoped>
-.coach {
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 160px);
-}
-
-.page-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-.page-head p {
-  margin: 0;
-  font-size: 13px;
-}
-
-.thread {
-  flex: 1;
-  overflow-y: auto;
-  max-height: calc(100vh - 260px);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px;
-}
-
-.intro {
-  margin: auto;
-  text-align: center;
-  max-width: 460px;
-}
-
-.suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.suggestions .btn {
-  text-align: left;
-}
-
-.turn {
-  display: flex;
-}
-
-.turn.user {
-  justify-content: flex-end;
-}
-
-.bubble {
-  max-width: 76%;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 13px;
-}
-
-.turn.user .bubble {
-  background: var(--series-1);
-  color: #fff;
-}
-
-.turn.coach .bubble {
-  background: var(--page);
-  border: 1px solid var(--border);
-}
-
-.bubble.failed {
-  border-color: var(--critical);
-}
-
-.user-text {
-  margin: 0;
-}
-
-.prose :deep(p) {
-  margin: 0 0 10px;
-}
-
-.prose :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.prose :deep(ul) {
-  margin: 0 0 10px;
-  padding-left: 18px;
-}
-
-.prose :deep(li) {
-  margin-bottom: 4px;
-}
-
-.prose :deep(code) {
-  background: var(--surface-1);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.tools {
-  margin: 10px 0 0;
-  font-size: 11px;
-}
-
-.composer {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.composer input {
-  flex: 1;
-  border: 1px solid var(--border);
-  background: var(--surface-1);
-  color: var(--text-primary);
-  border-radius: 9px;
-  padding: 10px 13px;
-  font: inherit;
-  font-size: 13px;
-}
-
-.composer input:focus {
-  outline: 2px solid var(--series-1);
-  outline-offset: -1px;
-}
-</style>

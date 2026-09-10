@@ -57,7 +57,7 @@ function barPath(x: number, y: number, w: number, h: number): string {
 </script>
 
 <template>
-  <div ref="wrap" class="chart-wrap">
+  <div ref="wrap" class="w-full">
     <svg
       v-if="scaled"
       :width="width"
@@ -65,16 +65,17 @@ function barPath(x: number, y: number, w: number, h: number): string {
       :viewBox="`0 0 ${width} ${height}`"
       role="img"
       aria-label="Working sets per week by muscle group"
+      class="block overflow-visible"
     >
       <g v-for="item in scaled.items" :key="item.muscle_group">
-        <text :x="LABEL_W - 10" :y="item.y + BAR_H - 2" text-anchor="end" class="row-label">
+        <text :x="LABEL_W - 10" :y="item.y + BAR_H - 2" text-anchor="end" class="fill-muted-foreground text-[11px]">
           {{ titleCase(item.muscle_group) }}
         </text>
         <path
           :d="barPath(LABEL_W, item.y, item.w, BAR_H)"
           :fill="item.below ? 'var(--warning)' : 'var(--series-1)'"
         />
-        <text :x="LABEL_W + item.w + 8" :y="item.y + BAR_H - 2" class="value-label">
+        <text :x="LABEL_W + item.w + 8" :y="item.y + BAR_H - 2" class="fill-foreground text-[11px] font-medium tabular-nums">
           {{ item.sets_per_week.toFixed(1) }}
         </text>
       </g>
@@ -88,37 +89,9 @@ function barPath(x: number, y: number, w: number, h: number): string {
         stroke="var(--text-muted)"
         stroke-width="1"
       />
-      <text :x="scaled.thresholdX" :y="height - 8" text-anchor="middle" class="axis">
+      <text :x="scaled.thresholdX" :y="height - 8" text-anchor="middle" class="fill-subtle text-[10px]">
         {{ threshold }} sets/week
       </text>
     </svg>
   </div>
 </template>
-
-<style scoped>
-.chart-wrap {
-  width: 100%;
-}
-
-svg {
-  display: block;
-  overflow: visible;
-}
-
-.row-label {
-  fill: var(--text-secondary);
-  font-size: 11px;
-}
-
-.value-label {
-  fill: var(--text-primary);
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.axis {
-  fill: var(--text-muted);
-  font-size: 10px;
-}
-</style>

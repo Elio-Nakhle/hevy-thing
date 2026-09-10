@@ -17,9 +17,9 @@ const { unit, convert, amount, weight } = useUnits()
 
 const range = ref(26)
 const RANGES = [
-  { weeks: 12, label: '12w' },
-  { weeks: 26, label: '26w' },
-  { weeks: 52, label: '1y' },
+  { value: 12, label: '12w' },
+  { value: 26, label: '26w' },
+  { value: 52, label: '1y' },
 ]
 
 const { data: overview, pending: overviewPending } = await useFetch<Overview>('/api/overview')
@@ -63,7 +63,7 @@ const severityColor: Record<string, string> = {
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="mb-[18px] flex flex-wrap items-center justify-between gap-4">
       <h1>Dashboard</h1>
       <ImportDropzone
         v-if="overview?.workouts"
@@ -81,11 +81,11 @@ const severityColor: Record<string, string> = {
     />
 
     <template v-else>
-      <HeadlineCard :headline="headline" class="lead" />
+      <HeadlineCard :headline="headline" class="mb-4" />
 
-      <ProfileForm v-if="askForProfile" first-run class="setup" />
+      <ProfileForm v-if="askForProfile" first-run class="border-l-warning mb-5 border-l-[3px]" />
 
-      <div class="grid grid-4 tiles" :class="{ stale: overviewPending }">
+      <div class="mb-5 grid gap-4 md:grid-cols-4" :class="{ stale: overviewPending }">
         <StatTile
           label="Workouts"
           :value="compact(overview?.workouts ?? 0)"
@@ -107,27 +107,15 @@ const severityColor: Record<string, string> = {
         </StatTile>
       </div>
 
-      <div class="filters">
-        <div class="seg" role="group" aria-label="Time range">
-          <button
-            v-for="option in RANGES"
-            :key="option.weeks"
-            type="button"
-            :aria-pressed="range === option.weeks"
-            @click="range = option.weeks"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-        <span class="secondary">
+      <div class="mb-[18px] flex flex-wrap items-center gap-2">
+        <Segmented v-model="range" :options="RANGES" label="Time range" />
+        <span class="text-muted-foreground">
           {{ fullDate(overview?.first_workout) }} - {{ fullDate(overview?.last_workout) }}
         </span>
       </div>
 
-      <div class="grid grid-2">
-        <ChartCard
-          :empty="bars.length === 0"
-        >
+      <div class="grid gap-4 md:grid-cols-2">
+        <ChartCard :empty="bars.length === 0">
           <template #title>Weekly <Term id="volume" /></template>
           <template #subtitle>
             Weight moved per week across <Term id="working_set" />s. Warm-ups excluded.
@@ -136,159 +124,111 @@ const severityColor: Record<string, string> = {
             <ColumnChart :bars="bars" :unit="unit" />
           </div>
           <template #table>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Week of</th>
-                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
-                  <th>Sets</th>
-                  <th>Sessions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="week in [...(weekly ?? [])].reverse()" :key="week.week">
-                  <td>{{ fullDate(week.week_start) }}</td>
-                  <td>{{ amount(week.volume_kg, 0) }}</td>
-                  <td>{{ week.sets }}</td>
-                  <td>{{ week.workouts }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <Table class="numeric-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Week of</TableHead>
+                  <TableHead><Term id="volume" capitalize /> ({{ unit }})</TableHead>
+                  <TableHead>Sets</TableHead>
+                  <TableHead>Sessions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="week in [...(weekly ?? [])].reverse()" :key="week.week">
+                  <TableCell>{{ fullDate(week.week_start) }}</TableCell>
+                  <TableCell>{{ amount(week.volume_kg, 0) }}</TableCell>
+                  <TableCell>{{ week.sets }}</TableCell>
+                  <TableCell>{{ week.workouts }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </template>
         </ChartCard>
 
-        <ChartCard
-          title="Muscle balance"
-          :empty="(muscles ?? []).length === 0"
-        >
+        <ChartCard title="Muscle balance" :empty="(muscles ?? []).length === 0">
           <template #subtitle>
             <Term id="sets_per_week" capitalize /> over the last 4 weeks. An exercise's
             secondary muscles count as half a set each.
           </template>
           <MuscleVolumeChart :groups="muscles ?? []" />
           <template #table>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Muscle group</th>
-                  <th><Term id="sets_per_week" capitalize /></th>
-                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="group in muscles ?? []" :key="group.muscle_group">
-                  <td>{{ titleCase(group.muscle_group) }}</td>
-                  <td>{{ group.sets_per_week.toFixed(1) }}</td>
-                  <td>{{ amount(group.volume_kg, 0) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <Table class="numeric-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Muscle group</TableHead>
+                  <TableHead><Term id="sets_per_week" capitalize /></TableHead>
+                  <TableHead><Term id="volume" capitalize /> ({{ unit }})</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="group in muscles ?? []" :key="group.muscle_group">
+                  <TableCell>{{ titleCase(group.muscle_group) }}</TableCell>
+                  <TableCell>{{ group.sets_per_week.toFixed(1) }}</TableCell>
+                  <TableCell>{{ amount(group.volume_kg, 0) }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </template>
         </ChartCard>
       </div>
 
-      <div class="grid grid-2 second-row">
-        <section class="card">
-          <div class="card-head"><h2 class="card-title">What to look at</h2></div>
-          <p class="card-sub">Computed from the log, ordered by severity.</p>
-          <p v-if="(insights ?? []).length === 0" class="empty">
-            Nothing flagged in the last 180 days.
-          </p>
-          <ul v-else class="insight-list">
-            <li v-for="(item, i) in (insights ?? []).slice(0, 7)" :key="i">
-              <span class="dot" :style="{ background: severityColor[item.severity] }" />
-              <div>
-                <strong>{{ item.title }}</strong>
-                <p class="secondary">{{ item.detail }}</p>
-              </div>
-            </li>
-          </ul>
-        </section>
+      <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>What to look at</CardTitle>
+            <CardDescription>Computed from the log, ordered by severity.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p v-if="(insights ?? []).length === 0" class="text-muted-foreground py-7 text-center text-[13px]">
+              Nothing flagged in the last 180 days.
+            </p>
+            <ul v-else class="flex list-none flex-col gap-3.5 p-0">
+              <li v-for="(item, i) in (insights ?? []).slice(0, 7)" :key="i" class="flex items-start gap-2.5">
+                <span
+                  class="mt-[5px] size-2 shrink-0 rounded-full"
+                  :style="{ background: severityColor[item.severity] }"
+                />
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <p class="text-muted-foreground mt-0.5 mb-0 text-xs">{{ item.detail }}</p>
+                </div>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
 
-        <section class="card">
-          <div class="card-head">
-            <h2 class="card-title">Recent <Term id="pr" />s</h2>
-          </div>
-          <p class="card-sub">
-            Sessions where your <Term id="e1rm" /> beat everything before it.
-          </p>
-          <p v-if="(records ?? []).length === 0" class="empty">No PRs in the last 180 days.</p>
-          <table v-else class="data-table">
-            <thead>
-              <tr>
-                <th>Exercise</th>
-                <th>Set</th>
-                <th><Term id="e1rm" capitalize /></th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in records ?? []" :key="`${record.template_id}${record.date}`">
-                <td>{{ record.title }}</td>
-                <td>{{ amount(record.weight_kg) }} x {{ record.reps }}</td>
-                <td>{{ weight(record.e1rm_kg) }}</td>
-                <td>{{ fullDate(record.date) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent <Term id="pr" />s</CardTitle>
+            <CardDescription>
+              Sessions where your <Term id="e1rm" /> beat everything before it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p v-if="(records ?? []).length === 0" class="text-muted-foreground py-7 text-center text-[13px]">
+              No PRs in the last 180 days.
+            </p>
+            <Table v-else class="numeric-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Exercise</TableHead>
+                  <TableHead>Set</TableHead>
+                  <TableHead><Term id="e1rm" capitalize /></TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="record in records ?? []" :key="`${record.template_id}${record.date}`">
+                  <TableCell>{{ record.title }}</TableCell>
+                  <TableCell>{{ amount(record.weight_kg) }} x {{ record.reps }}</TableCell>
+                  <TableCell>{{ weight(record.e1rm_kg) }}</TableCell>
+                  <TableCell>{{ fullDate(record.date) }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
-}
-
-.lead {
-  margin-bottom: 16px;
-}
-
-.setup {
-  margin-bottom: 20px;
-  border-left: 3px solid var(--warning);
-}
-
-.tiles {
-  margin-bottom: 20px;
-}
-
-.second-row {
-  margin-top: 16px;
-}
-
-.insight-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.insight-list li {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.insight-list p {
-  margin: 2px 0 0;
-  font-size: 12px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 5px;
-  flex: none;
-}
-</style>

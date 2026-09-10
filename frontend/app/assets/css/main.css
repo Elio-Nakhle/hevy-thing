@@ -1,3 +1,22 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* The theme is tri-state: no `data-theme` attribute means "follow the system",
+ * and an explicit `light` or `dark` overrides it. Tailwind's stock `dark:`
+ * variant only understands one of those, so it is redefined to understand both
+ * - otherwise a shadcn component's own `dark:` utilities would ignore the
+ * toggle in the sidebar footer. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+}
+
 /* Design tokens.
  *
  * Palette values and the light/dark scoping pattern follow the validated
@@ -6,6 +25,12 @@
  * dark, and it stops short of the surface at both ends:
  *   light mode starts at step 250, dark mode stops at step 600.
  * Both directions were checked with the palette validator in --ordinal mode.
+ *
+ * The block below is the palette; the block after it maps those values onto the
+ * names shadcn components ask for. Keeping the two separate means a component
+ * we vendor in later gets our colours without us restating them, and the charts
+ * can go on reading the palette directly - an SVG `fill` wants a `var()`, not a
+ * utility class.
  */
 
 :root {
@@ -19,8 +44,11 @@
   --text-muted: #898781;
   --gridline: #e1e0d9;
   --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
+  --border-hairline: rgba(11, 11, 11, 0.1);
   --overlay: rgba(11, 11, 11, 0.72);
+  /* One step between `page` and `gridline`: enough to read as "selected"
+   * against a `surface-1` sidebar without introducing a new hue. */
+  --raised: #edece5;
 
   /* categorical - only slots 1 and 2 are used; most charts are single-series */
   --series-1: #2a78d6;
@@ -42,6 +70,36 @@
 
   --radius: 10px;
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* -- shadcn semantic names, resolved from the palette above ------------- */
+  --background: var(--page);
+  --foreground: var(--text-primary);
+  --card: var(--surface-1);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-1);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--series-1);
+  --primary-foreground: #ffffff;
+  --secondary: var(--raised);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--raised);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--raised);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--critical);
+  --destructive-foreground: #ffffff;
+  --border: var(--border-hairline);
+  --input: var(--border-hairline);
+  --ring: var(--series-1);
+
+  --sidebar: var(--surface-1);
+  --sidebar-foreground: var(--text-secondary);
+  --sidebar-primary: var(--series-1);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--raised);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-hairline);
+  --sidebar-ring: var(--series-1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -54,8 +112,9 @@
     --text-muted: #898781;
     --gridline: #2c2c2a;
     --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
+    --border-hairline: rgba(255, 255, 255, 0.1);
     --overlay: rgba(0, 0, 0, 0.85);
+    --raised: #262624;
     --series-1: #3987e5;
     --series-2: #d95926;
     --success-text: #0ca30c;
@@ -76,8 +135,9 @@
   --text-muted: #898781;
   --gridline: #2c2c2a;
   --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
+  --border-hairline: rgba(255, 255, 255, 0.1);
   --overlay: rgba(0, 0, 0, 0.85);
+  --raised: #262624;
   --series-1: #3987e5;
   --series-2: #d95926;
   --success-text: #0ca30c;
@@ -88,221 +148,117 @@
   --level-5: #9ec5f4;
 }
 
-* {
-  box-sizing: border-box;
+/* Utilities generated from the tokens. The semantic names come first because
+ * shadcn components are written against them; the palette names follow so a
+ * chart legend can say `text-series-1` and match the series it labels. */
+@theme inline {
+  --font-sans: var(--font);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-subtle: var(--text-muted);
+  --color-gridline: var(--gridline);
+  --color-baseline: var(--baseline);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-success: var(--success-text);
+  --color-level-1: var(--level-1);
+  --color-level-2: var(--level-2);
+  --color-level-3: var(--level-3);
+  --color-level-4: var(--level-4);
+  --color-level-5: var(--level-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background: var(--page);
-  color: var(--text-primary);
-  font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-a {
-  color: inherit;
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-h1 {
-  font-size: 22px;
-}
-h2 {
-  font-size: 16px;
-}
-h3 {
-  font-size: 14px;
-}
-
-/* -- layout ------------------------------------------------------------- */
-
-.shell {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 0 24px 72px;
-}
-
-.grid {
-  display: grid;
-  gap: 16px;
-}
-
-@media (min-width: 720px) {
-  .grid-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-  .grid-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  body {
+    /* 14px, as before: it makes Tailwind's `text-sm` the body size, so the
+     * scale in the utilities matches the one the pages were designed at. */
+    @apply bg-background text-foreground text-sm leading-normal antialiased;
+    font-family: var(--font-sans);
+  }
+
+  h1 {
+    @apply text-[22px] font-semibold tracking-[-0.01em];
+  }
+
+  h2 {
+    @apply text-base font-semibold tracking-[-0.01em];
+  }
+
+  h3 {
+    @apply text-sm font-semibold tracking-[-0.01em];
+  }
+
+  a {
+    color: inherit;
+  }
+
+  /* Every number in this app is compared against another number above or below
+   * it, so figures line up by default rather than per table. */
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* -- card --------------------------------------------------------------- */
+/* Two patterns that recur often enough to keep as utilities rather than
+ * repeating their arbitrary variants at every call site. */
 
-.card {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px 20px 16px;
-}
+/* Every number in a table is read against the one below it, so numeric columns
+ * are right-aligned and the leftmost - always the label - is not. */
+@utility numeric-table {
+  & th,
+  & td {
+    text-align: right;
+  }
 
-.card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.card-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.card-sub {
-  margin: 0 0 14px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-/* -- controls ----------------------------------------------------------- */
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-1);
-}
-
-.seg button {
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 12px;
-  padding: 6px 11px;
-  cursor: pointer;
-}
-
-.seg button + button {
-  border-left: 1px solid var(--border);
-}
-
-.seg button[aria-pressed='true'] {
-  background: var(--series-1);
-  color: #fff;
-}
-
-.btn {
-  border: 1px solid var(--border);
-  background: var(--surface-1);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.btn:hover:not(:disabled) {
-  border-color: var(--baseline);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.btn-primary {
-  background: var(--series-1);
-  border-color: var(--series-1);
-  color: #fff;
-}
-
-.link-quiet {
-  color: var(--text-secondary);
-  font-size: 12px;
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-/* -- table view --------------------------------------------------------- */
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.data-table th,
-.data-table td {
-  text-align: right;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--gridline);
-  white-space: nowrap;
-}
-
-.data-table th:first-child,
-.data-table td:first-child {
-  text-align: left;
-}
-
-.data-table th {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.scroll-x {
-  overflow-x: auto;
-}
-
-.muted {
-  color: var(--text-muted);
-}
-
-.secondary {
-  color: var(--text-secondary);
-}
-
-.empty {
-  color: var(--text-secondary);
-  font-size: 13px;
-  padding: 28px 0;
-  text-align: center;
+  & th:first-child,
+  & td:first-child {
+    text-align: left;
+  }
 }
 
 /* Refetches hold the previous render instead of flashing a skeleton. */
-.stale {
+@utility stale {
   opacity: 0.55;
   transition: opacity 120ms ease;
 }

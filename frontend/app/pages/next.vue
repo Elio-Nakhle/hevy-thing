@@ -121,6 +121,22 @@ function routineLabel(title: string): string {
   return title.trim() || 'Untitled'
 }
 
+/* The rotation chips, as one string: three call sites want the same pill, and
+ * 44px is the smallest thing a thumb hits reliably. Pressed state rides on
+ * `aria-pressed`, so the styling and the accessible state cannot drift apart. */
+const CHIP = 'inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border '
+  + 'bg-card text-muted-foreground px-3.5 text-[13px] '
+  + 'aria-pressed:border-primary aria-pressed:text-foreground aria-pressed:font-medium '
+  + 'aria-pressed:bg-[color-mix(in_srgb,var(--series-1)_8%,var(--surface-1))]'
+
+/* The chip and its put-away button read as one control, so the pair joins in
+ * the middle and only the outer edges are round. */
+const CHIP_JOINED = `${CHIP} rounded-r-none border-r-0`
+
+const CHIP_SIDE = 'min-h-11 cursor-pointer rounded-r-full border bg-card px-2.5 text-[15px] '
+  + 'leading-none text-subtle hover:border-baseline hover:text-foreground '
+  + 'disabled:cursor-default disabled:opacity-50'
+
 function daysAgo(days: number): string {
   if (days === 0) return 'today'
   if (days === 1) return 'yesterday'
@@ -129,40 +145,45 @@ function daysAgo(days: number): string {
 </script>
 
 <template>
-  <div class="rack">
-    <div v-if="error" class="card empty">
-      <h1>Nothing to prescribe yet</h1>
-      <p class="secondary">
-        Import a Hevy CSV export on the <NuxtLink to="/">dashboard</NuxtLink> and this fills
-        in with your next session.
-      </p>
-    </div>
+  <!-- One column, thumb-width, regardless of the screen it lands on. -->
+  <div class="mx-auto max-w-[30rem]">
+    <Card v-if="error">
+      <CardContent class="px-6 py-10 text-center">
+        <h1>Nothing to prescribe yet</h1>
+        <p class="text-muted-foreground mx-auto mt-2.5 max-w-[34ch] text-[13px]">
+          Import a Hevy CSV export on the <NuxtLink to="/">dashboard</NuxtLink> and this fills
+          in with your next session.
+        </p>
+      </CardContent>
+    </Card>
 
     <template v-else-if="session">
-      <header class="head">
-        <span class="eyebrow secondary">Next session</span>
-        <h1>{{ routineLabel(session.routine.title) }}</h1>
-        <p class="sub secondary">
+      <header class="mb-4">
+        <span class="text-muted-foreground text-xs font-medium tracking-[0.06em] uppercase">
+          Next session
+        </span>
+        <h1 class="mt-0.5 text-[28px]">{{ routineLabel(session.routine.title) }}</h1>
+        <p class="text-muted-foreground mt-1 mb-0 text-xs">
           Last run {{ daysAgo(session.routine.days_since) }}
           ({{ fullDate(session.routine.last_performed) }}) &middot;
           run {{ session.routine.runs }} of this routine
         </p>
       </header>
 
-      <div v-if="rotation.length > 1 || others.length" class="switcher">
-        <span v-for="option in rotation" :key="option.title" class="chip-group">
+      <div v-if="rotation.length > 1 || others.length" class="mb-4 flex flex-wrap gap-2">
+        <span v-for="option in rotation" :key="option.title" class="inline-flex items-stretch">
           <button
             type="button"
-            class="chip"
+            :class="CHIP_JOINED"
             :aria-pressed="option.title === shown"
             @click="select(option)"
           >
             {{ routineLabel(option.title) }}
-            <span class="chip-days">{{ option.days_since }}d</span>
+            <span class="text-subtle text-[11px] tabular-nums">{{ option.days_since }}d</span>
           </button>
           <button
             type="button"
-            class="chip-side"
+            :class="CHIP_SIDE"
             :disabled="busy"
             :title="`Take ${routineLabel(option.title)} out of the rotation`"
             :aria-label="`Take ${routineLabel(option.title)} out of the rotation`"
@@ -173,7 +194,7 @@ function daysAgo(days: number): string {
         <button
           v-if="others.length"
           type="button"
-          class="chip more"
+          :class="[CHIP, 'border-dashed']"
           :aria-expanded="showOthers"
           @click="showOthers = !showOthers"
         >
@@ -181,27 +202,27 @@ function daysAgo(days: number): string {
         </button>
       </div>
 
-      <div v-if="showOthers && others.length" class="others">
-        <p class="others-note muted">
+      <div v-if="showOthers && others.length" class="mt-[-6px] mb-4 flex flex-wrap gap-2">
+        <p class="text-subtle m-0 mb-0.5 basis-full text-xs leading-normal">
           Routines you have run once, or not in the last four weeks, or put away. They are
           not offered or predicted - tap one to use it anyway.
         </p>
-        <span v-for="option in others" :key="option.title" class="chip-group">
+        <span v-for="option in others" :key="option.title" class="inline-flex items-stretch">
           <button
             type="button"
-            class="chip ghost"
+            :class="[CHIP_JOINED, 'border-dashed']"
             :aria-pressed="option.title === shown"
             @click="select(option)"
           >
             {{ routineLabel(option.title) }}
-            <span class="chip-days">
+            <span class="text-subtle text-[11px] tabular-nums">
               {{ option.runs === 1 ? 'once' : `${option.runs} runs` }} &middot;
               {{ option.days_since }}d
             </span>
           </button>
           <button
             type="button"
-            class="chip-side"
+            :class="CHIP_SIDE"
             :disabled="busy"
             :title="option.dismissed
               ? `Put ${routineLabel(option.title)} back in the rotation`
@@ -214,36 +235,48 @@ function daysAgo(days: number): string {
         </span>
       </div>
 
-      <p class="summary" :class="{ stale: pending }">{{ session.summary }}</p>
+      <p class="mt-0 mb-4 text-[15px] leading-[1.4] font-medium" :class="{ stale: pending }">
+        {{ session.summary }}
+      </p>
 
-      <ol class="list" :class="{ stale: pending }">
-        <li v-for="exercise in session.exercises" :key="exercise.template_id" class="card item">
-          <div class="item-head">
-            <h2>{{ exercise.title }}</h2>
-            <span
-              class="tag"
-              :style="{ background: action(exercise.recommendation).colour }"
-            >{{ action(exercise.recommendation).label }}</span>
-          </div>
+      <ol class="m-0 flex list-none flex-col gap-3 p-0" :class="{ stale: pending }">
+        <li v-for="exercise in session.exercises" :key="exercise.template_id">
+          <Card>
+            <CardContent>
+              <div class="flex items-start justify-between gap-2.5">
+                <h2 class="text-base leading-[1.3]">{{ exercise.title }}</h2>
+                <span
+                  class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-white"
+                  :style="{ background: action(exercise.recommendation).colour }"
+                >{{ action(exercise.recommendation).label }}</span>
+              </div>
 
-          <p v-if="exercise.muscle_group" class="muscle muted">
-            {{ titleCase(exercise.muscle_group) }}
-          </p>
+              <p v-if="exercise.muscle_group" class="text-subtle mt-0.5 mb-0 text-xs">
+                {{ titleCase(exercise.muscle_group) }}
+              </p>
 
-          <p class="target">
-            {{ prescription(exercise.recommendation) }}
-            <span v-if="loadDelta(exercise)" class="delta">{{ loadDelta(exercise) }}</span>
-          </p>
+              <!-- The number you are standing there to read. -->
+              <p class="mt-3 mb-0 flex flex-wrap items-baseline gap-2.5 text-[26px] font-semibold tracking-[-0.02em] tabular-nums">
+                {{ prescription(exercise.recommendation) }}
+                <span
+                  v-if="loadDelta(exercise)"
+                  class="text-muted-foreground text-[13px] font-medium tracking-normal"
+                >{{ loadDelta(exercise) }}</span>
+              </p>
 
-          <p v-if="lastTime(exercise)" class="last secondary">
-            Last time: {{ lastTime(exercise) }}
-          </p>
+              <p v-if="lastTime(exercise)" class="text-muted-foreground mt-1.5 mb-0 text-[13px] tabular-nums">
+                Last time: {{ lastTime(exercise) }}
+              </p>
 
-          <p class="why muted">{{ exercise.recommendation.detail }}</p>
+              <p class="text-subtle mt-2.5 mb-0 text-xs leading-normal">
+                {{ exercise.recommendation.detail }}
+              </p>
+            </CardContent>
+          </Card>
         </li>
       </ol>
 
-      <p class="foot muted">
+      <p class="text-subtle mt-5 mb-0 text-[11px] leading-normal">
         Prescriptions use double progression: hold the weight until you reach the top of the
         rep range on every working set, then add the smallest jump this exercise moves in and
         drop back to the bottom. Read-only - nothing here is logged back to Hevy.
@@ -251,220 +284,3 @@ function daysAgo(days: number): string {
     </template>
   </div>
 </template>
-
-<style scoped>
-/* One column, thumb-width, regardless of the screen it lands on. */
-.rack {
-  max-width: 30rem;
-  margin: 0 auto;
-}
-
-.head {
-  margin-bottom: 16px;
-}
-
-.eyebrow {
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.head h1 {
-  font-size: 28px;
-  margin: 2px 0 0;
-}
-
-.sub {
-  margin: 4px 0 0;
-  font-size: 12px;
-}
-
-.switcher {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-/* The chip and its put-away button read as one control. */
-.chip-group {
-  display: inline-flex;
-  align-items: stretch;
-}
-
-.chip-group .chip {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-right: 0;
-}
-
-.chip-side {
-  min-height: 44px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-top-right-radius: 999px;
-  border-bottom-right-radius: 999px;
-  background: var(--surface-1);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.chip-side:hover:not(:disabled) {
-  color: var(--text-primary);
-  border-color: var(--baseline);
-}
-
-.chip-side:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.chip.ghost {
-  color: var(--text-muted);
-  border-style: dashed;
-}
-
-.chip.more {
-  color: var(--text-secondary);
-  border-style: dashed;
-}
-
-.others {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: -6px 0 16px;
-}
-
-.others-note {
-  flex: 1 0 100%;
-  margin: 0 0 2px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-/* 44px tall: the smallest thing a thumb hits reliably. */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-1);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.chip[aria-pressed='true'] {
-  border-color: var(--series-1);
-  color: var(--text-primary);
-  font-weight: 500;
-  background: color-mix(in srgb, var(--series-1) 8%, var(--surface-1));
-}
-
-.chip-days {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.summary {
-  margin: 0 0 16px;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.item-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.item h2 {
-  font-size: 16px;
-  line-height: 1.3;
-}
-
-.tag {
-  color: #fff;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex: none;
-}
-
-.muscle {
-  margin: 2px 0 0;
-  font-size: 12px;
-}
-
-/* The number you are standing there to read. */
-.target {
-  margin: 12px 0 0;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.delta {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  letter-spacing: 0;
-}
-
-.last {
-  margin: 6px 0 0;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.why {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.foot {
-  margin: 20px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.empty {
-  text-align: center;
-  padding: 40px 24px;
-}
-
-.empty p {
-  margin: 10px auto 0;
-  max-width: 34ch;
-  font-size: 13px;
-}
-</style>

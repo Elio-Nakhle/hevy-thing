@@ -32,14 +32,8 @@ const text = computed(() => {
 </script>
 
 <template>
-  <abbr class="term" :title="provenance(props.id)">{{ text }}</abbr>
+  <abbr
+    class="decoration-baseline cursor-help underline decoration-dotted underline-offset-[3px]"
+    :title="provenance(props.id)"
+  >{{ text }}</abbr>
 </template>
-
-<style scoped>
-.term {
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--baseline);
-  cursor: help;
-}
-</style>

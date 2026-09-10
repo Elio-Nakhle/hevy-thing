@@ -44,100 +44,67 @@ const rows = computed(() => {
 
 <template>
   <div>
-    <div class="page-head">
+    <div class="mb-[18px] flex flex-wrap items-center justify-between gap-4">
       <h1>Exercises</h1>
-      <input v-model="search" class="search" type="search" placeholder="Filter exercises" />
+      <Input
+        v-model="search"
+        type="search"
+        class="h-9 w-auto min-w-[220px] text-[13px]"
+        placeholder="Filter exercises"
+      />
     </div>
 
-    <section class="card" :class="{ stale: pending }">
-      <p v-if="rows.length === 0" class="empty">
-        {{ search ? 'No exercises match that filter.' : 'No exercises logged yet.' }}
-      </p>
-      <div v-else class="scroll-x">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Exercise</th>
-              <th>Sessions</th>
-              <th>Sets</th>
-              <th>Best <Term id="e1rm" /></th>
-              <th>{{ unit }}/month</th>
-              <th><Term id="trend" capitalize /></th>
-              <th>Last done</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.template_id">
-              <td>
-                <NuxtLink :to="`/exercises/${row.template_id}`" class="ex-link">
-                  {{ row.title }}
-                </NuxtLink>
-              </td>
-              <td>{{ row.sessions }}</td>
-              <td>{{ row.sets }}</td>
-              <td>{{ weight(row.best_e1rm_kg) }}</td>
-              <td>
-                <template v-if="row.slope !== null">{{ row.slope }}</template>
-                <span v-else class="muted">-</span>
-              </td>
-              <td class="trend-cell">
-                <template v-if="row.style">
-                  <span class="dot" :style="{ background: row.style.color }" />
-                  {{ row.style.label }}
-                </template>
-                <span v-else class="muted">too few sessions</span>
-              </td>
-              <td>{{ fullDate(row.last_performed) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <Card :class="{ stale: pending }">
+      <CardContent>
+        <p v-if="rows.length === 0" class="text-muted-foreground py-7 text-center text-[13px]">
+          {{ search ? 'No exercises match that filter.' : 'No exercises logged yet.' }}
+        </p>
+        <div v-else class="overflow-x-auto">
+          <Table class="numeric-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Exercise</TableHead>
+                <TableHead>Sessions</TableHead>
+                <TableHead>Sets</TableHead>
+                <TableHead>Best <Term id="e1rm" /></TableHead>
+                <TableHead>{{ unit }}/month</TableHead>
+                <TableHead class="text-left!"><Term id="trend" capitalize /></TableHead>
+                <TableHead>Last done</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="row in rows" :key="row.template_id">
+                <TableCell>
+                  <NuxtLink
+                    :to="`/exercises/${row.template_id}`"
+                    class="text-foreground font-medium no-underline hover:underline hover:underline-offset-[3px]"
+                  >
+                    {{ row.title }}
+                  </NuxtLink>
+                </TableCell>
+                <TableCell>{{ row.sessions }}</TableCell>
+                <TableCell>{{ row.sets }}</TableCell>
+                <TableCell>{{ weight(row.best_e1rm_kg) }}</TableCell>
+                <TableCell>
+                  <template v-if="row.slope !== null">{{ row.slope }}</template>
+                  <span v-else class="text-subtle">-</span>
+                </TableCell>
+                <TableCell class="text-left! whitespace-nowrap">
+                  <template v-if="row.style">
+                    <span
+                      class="mr-1.5 inline-block size-2 rounded-full"
+                      :style="{ background: row.style.color }"
+                    />
+                    {{ row.style.label }}
+                  </template>
+                  <span v-else class="text-subtle">too few sessions</span>
+                </TableCell>
+                <TableCell>{{ fullDate(row.last_performed) }}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   </div>
 </template>
-
-<style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-
-.search {
-  border: 1px solid var(--border);
-  background: var(--surface-1);
-  color: var(--text-primary);
-  border-radius: 8px;
-  padding: 7px 11px;
-  font: inherit;
-  font-size: 13px;
-  min-width: 220px;
-}
-
-.ex-link {
-  color: var(--text-primary);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.ex-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.trend-cell {
-  text-align: left !important;
-  white-space: nowrap;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 6px;
-}
-</style>

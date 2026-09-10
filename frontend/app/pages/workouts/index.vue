@@ -23,6 +23,14 @@ const routines = computed(() => {
     .map(([title, runs]) => ({ title, runs }))
 })
 
+const routineOptions = computed(() => [
+  { value: 'all', label: 'All' },
+  ...routines.value.map((option) => ({
+    value: option.title,
+    label: `${option.title} (${option.runs})`,
+  })),
+])
+
 const rows = computed(() =>
   (workouts.value ?? []).filter((w) => routine.value === 'all' || w.title === routine.value),
 )
@@ -51,103 +59,69 @@ const deltas = computed(() => {
 
 <template>
   <div>
-    <div class="page-head">
-      <div>
-        <h1>Workouts</h1>
-        <p class="secondary sub">
-          Open a session for what it did to each lift and what to load next time.
+    <div class="mb-[18px]">
+      <h1>Workouts</h1>
+      <p class="text-muted-foreground mt-1 mb-0 text-[13px]">
+        Open a session for what it did to each lift and what to load next time.
+      </p>
+    </div>
+
+    <div v-if="routines.length > 1" class="mb-[18px] max-w-full overflow-x-auto">
+      <Segmented v-model="routine" :options="routineOptions" label="Routine" />
+    </div>
+
+    <Card :class="{ stale: pending }">
+      <CardContent>
+        <p v-if="rows.length === 0" class="text-muted-foreground py-7 text-center text-[13px]">
+          No sessions logged yet.
         </p>
-      </div>
-    </div>
-
-    <div v-if="routines.length > 1" class="filters">
-      <div class="seg" role="group" aria-label="Routine">
-        <button type="button" :aria-pressed="routine === 'all'" @click="routine = 'all'">
-          All
-        </button>
-        <button
-          v-for="option in routines"
-          :key="option.title"
-          type="button"
-          :aria-pressed="routine === option.title"
-          @click="routine = option.title"
-        >
-          {{ option.title }} ({{ option.runs }})
-        </button>
-      </div>
-    </div>
-
-    <section class="card" :class="{ stale: pending }">
-      <p v-if="rows.length === 0" class="empty">No sessions logged yet.</p>
-      <div v-else class="scroll-x">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Routine</th>
-              <th>Run</th>
-              <th>Exercises</th>
-              <th>Sets</th>
-              <th>Volume ({{ unit }})</th>
-              <th>vs previous run</th>
-              <th>Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.id">
-              <td>
-                <NuxtLink :to="`/workouts/${row.id}`" class="row-link">
-                  {{ fullDate(row.start_time) }}
-                </NuxtLink>
-              </td>
-              <td class="left">{{ row.title }}</td>
-              <td class="muted">{{ row.routine_index }} / {{ row.routine_runs }}</td>
-              <td>{{ row.exercises }}</td>
-              <td>{{ row.sets }}</td>
-              <td>{{ amount(row.volume_kg, 0) }}</td>
-              <td>
-                <span
-                  v-if="deltas.get(row.id) !== undefined"
-                  :style="{ color: (deltas.get(row.id) as number) >= 0 ? 'var(--success-text)' : 'var(--text-secondary)' }"
-                >
-                  {{ (deltas.get(row.id) as number) >= 0 ? '+' : '' }}{{ (deltas.get(row.id) as number).toFixed(0) }}%
-                </span>
-                <span v-else class="muted">-</span>
-              </td>
-              <td>
-                <template v-if="row.duration_minutes">{{ Math.round(row.duration_minutes) }} min</template>
-                <span v-else class="muted">-</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <div v-else class="overflow-x-auto">
+          <Table class="numeric-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead class="text-left!">Routine</TableHead>
+                <TableHead>Run</TableHead>
+                <TableHead>Exercises</TableHead>
+                <TableHead>Sets</TableHead>
+                <TableHead>Volume ({{ unit }})</TableHead>
+                <TableHead>vs previous run</TableHead>
+                <TableHead>Duration</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="row in rows" :key="row.id">
+                <TableCell>
+                  <NuxtLink
+                    :to="`/workouts/${row.id}`"
+                    class="text-foreground font-medium no-underline hover:underline hover:underline-offset-[3px]"
+                  >
+                    {{ fullDate(row.start_time) }}
+                  </NuxtLink>
+                </TableCell>
+                <TableCell class="text-left!">{{ row.title }}</TableCell>
+                <TableCell class="text-subtle">{{ row.routine_index }} / {{ row.routine_runs }}</TableCell>
+                <TableCell>{{ row.exercises }}</TableCell>
+                <TableCell>{{ row.sets }}</TableCell>
+                <TableCell>{{ amount(row.volume_kg, 0) }}</TableCell>
+                <TableCell>
+                  <span
+                    v-if="deltas.get(row.id) !== undefined"
+                    :style="{ color: (deltas.get(row.id) as number) >= 0 ? 'var(--success-text)' : 'var(--text-secondary)' }"
+                  >
+                    {{ (deltas.get(row.id) as number) >= 0 ? '+' : '' }}{{ (deltas.get(row.id) as number).toFixed(0) }}%
+                  </span>
+                  <span v-else class="text-subtle">-</span>
+                </TableCell>
+                <TableCell>
+                  <template v-if="row.duration_minutes">{{ Math.round(row.duration_minutes) }} min</template>
+                  <span v-else class="text-subtle">-</span>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   </div>
 </template>
-
-<style scoped>
-.page-head {
-  margin-bottom: 18px;
-}
-
-.sub {
-  margin: 4px 0 0;
-  font-size: 13px;
-}
-
-.left {
-  text-align: left !important;
-}
-
-.row-link {
-  color: var(--text-primary);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.row-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-</style>

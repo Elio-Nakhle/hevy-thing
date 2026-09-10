@@ -164,273 +164,143 @@ async function save() {
 </script>
 
 <template>
-  <section class="card">
-    <div class="card-head">
-      <h2 class="card-title">
+  <Card>
+    <CardHeader>
+      <CardTitle>
         {{ props.firstRun ? 'Tell us who is lifting' : 'Lifter profile' }}
-      </h2>
-      <span v-if="saved && !error" class="ok">Saved</span>
-    </div>
-    <p class="card-sub">
-      <template v-if="props.firstRun">
-        Your strength levels are being scored against a placeholder. Six answers fix that -
-        bodyweight and sex place every lift on its band, and the goal decides which findings
-        the app reports.
-      </template>
-      <template v-else>
-        Saved to <code>{{ profile?.env_file }}</code>, which the CLI reads too.
-      </template>
-    </p>
+      </CardTitle>
+      <CardAction v-if="saved && !error">
+        <span class="text-success text-xs">Saved</span>
+      </CardAction>
+      <CardDescription>
+        <template v-if="props.firstRun">
+          Your strength levels are being scored against a placeholder. Six answers fix that -
+          bodyweight and sex place every lift on its band, and the goal decides which findings
+          the app reports.
+        </template>
+        <template v-else>
+          Saved to
+          <code class="bg-background rounded px-1.5 py-0.5 text-[11px]">{{ profile?.env_file }}</code>,
+          which the CLI reads too.
+        </template>
+      </CardDescription>
+    </CardHeader>
 
-    <form class="fields" @submit.prevent="save">
-      <div class="field">
-        <label for="bodyweight">
-          Bodyweight ({{ form.units }})
-          <span v-if="unset.has('bodyweight_kg')" class="flag">required</span>
-        </label>
-        <input
-          id="bodyweight"
-          v-model="form.bodyweight"
-          type="number"
-          inputmode="decimal"
-          step="0.1"
-          min="0"
-          :placeholder="`Your bodyweight in ${form.units}`"
-          required
-        >
-        <p class="hint">
-          Every standard is indexed on this, so it moves whole bands.
-          <template v-if="profile?.bodyweight_source === 'measured'">
-            A measurement logged in Hevy outranks it.
-          </template>
-        </p>
-      </div>
-
-      <div class="field">
-        <label for="sex">Sex</label>
-        <select id="sex" v-model="form.sex">
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-        </select>
-        <p class="hint">Which set of published standards your lifts are scored against.</p>
-      </div>
-
-      <div class="field">
-        <label for="birth-date">Birth date <span class="flag optional">optional</span></label>
-        <input id="birth-date" v-model="form.birth_date" type="date">
-        <p class="hint">
-          Enables the age adjustment on the standards.
-          <template v-if="profile?.age"> Currently age {{ profile.age }}.</template>
-        </p>
-      </div>
-
-      <div class="field">
-        <label for="units">Display units</label>
-        <select id="units" v-model="form.units">
-          <option value="kg">Kilograms</option>
-          <option value="lb">Pounds</option>
-        </select>
-        <p class="hint">Display only - everything is stored and calculated in kilograms.</p>
-      </div>
-
-      <div class="field span-2">
-        <label for="dumbbell">Two-dumbbell loads</label>
-        <select id="dumbbell" v-model="form.dumbbell_load">
-          <option value="per_dumbbell">I log the weight of one dumbbell</option>
-          <option value="combined">I log the pair's total</option>
-        </select>
-        <p class="hint">
-          The standards are published per dumbbell, which is also what Hevy asks for. Get this
-          wrong and every dumbbell lift is scored at double or half.
-        </p>
-      </div>
-
-      <fieldset class="field span-2 goals">
-        <legend>What is this log for?</legend>
-        <div class="goal-options">
-          <label v-for="goal in goals ?? []" :key="goal.name" class="goal">
-            <input v-model="form.training_goal" type="radio" :value="goal.name">
-            <span>
-              <strong>{{ titleCase(goal.name) }}</strong>
-              <span class="secondary goal-sub">{{ goal.summary }}</span>
+    <CardContent>
+      <form class="grid gap-[18px] md:grid-cols-2" @submit.prevent="save">
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <Label for="bodyweight" class="text-[13px]">
+            Bodyweight ({{ form.units }})
+            <span v-if="unset.has('bodyweight_kg')" class="text-critical ml-1 text-[11px] font-medium">
+              required
             </span>
-          </label>
+          </Label>
+          <Input
+            id="bodyweight"
+            v-model="form.bodyweight"
+            type="number"
+            inputmode="decimal"
+            step="0.1"
+            min="0"
+            :placeholder="`Your bodyweight in ${form.units}`"
+            required
+          />
+          <p class="text-muted-foreground m-0 text-xs">
+            Every standard is indexed on this, so it moves whole bands.
+            <template v-if="profile?.bodyweight_source === 'measured'">
+              A measurement logged in Hevy outranks it.
+            </template>
+          </p>
         </div>
-        <ul v-if="goalEffects.length" class="effects">
-          <li v-for="(effect, i) in goalEffects" :key="i">{{ effect }}</li>
-        </ul>
-      </fieldset>
 
-      <div class="actions span-2">
-        <button class="btn btn-primary save" type="submit" :disabled="!canSave">
-          {{ busy ? 'Saving...' : 'Save profile' }}
-        </button>
-        <span v-if="error" class="bad">{{ error }}</span>
-        <span v-else-if="!bodyweightKg" class="secondary">
-          Bodyweight is the one answer we cannot guess.
-        </span>
-      </div>
-    </form>
-  </section>
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <Label for="sex" class="text-[13px]">Sex</Label>
+          <Select v-model="form.sex">
+            <SelectTrigger id="sex" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-muted-foreground m-0 text-xs">
+            Which set of published standards your lifts are scored against.
+          </p>
+        </div>
+
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <Label for="birth-date" class="text-[13px]">
+            Birth date
+            <span class="text-subtle ml-1 text-[11px] font-medium">optional</span>
+          </Label>
+          <Input id="birth-date" v-model="form.birth_date" type="date" />
+          <p class="text-muted-foreground m-0 text-xs">
+            Enables the age adjustment on the standards.
+            <template v-if="profile?.age"> Currently age {{ profile.age }}.</template>
+          </p>
+        </div>
+
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <Label for="units" class="text-[13px]">Display units</Label>
+          <Select v-model="form.units">
+            <SelectTrigger id="units" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="kg">Kilograms</SelectItem>
+              <SelectItem value="lb">Pounds</SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-muted-foreground m-0 text-xs">
+            Display only - everything is stored and calculated in kilograms.
+          </p>
+        </div>
+
+        <div class="flex min-w-0 flex-col gap-1.5 md:col-span-2">
+          <Label for="dumbbell" class="text-[13px]">Two-dumbbell loads</Label>
+          <Select v-model="form.dumbbell_load">
+            <SelectTrigger id="dumbbell" class="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="per_dumbbell">I log the weight of one dumbbell</SelectItem>
+              <SelectItem value="combined">I log the pair's total</SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-muted-foreground m-0 text-xs">
+            The standards are published per dumbbell, which is also what Hevy asks for. Get this
+            wrong and every dumbbell lift is scored at double or half.
+          </p>
+        </div>
+
+        <fieldset class="m-0 flex min-w-0 flex-col gap-2.5 border-0 p-0 md:col-span-2">
+          <legend class="p-0 text-[13px] font-medium">What is this log for?</legend>
+          <RadioGroup v-model="form.training_goal" class="grid gap-2 lg:grid-cols-3">
+            <Label
+              v-for="goal in goals ?? []"
+              :key="goal.name"
+              :for="`goal-${goal.name}`"
+              class="border-input hover:bg-accent/40 has-data-[state=checked]:border-primary
+                     has-data-[state=checked]:bg-[color-mix(in_srgb,var(--series-1)_6%,var(--surface-1))]
+                     flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 font-normal"
+            >
+              <RadioGroupItem :id="`goal-${goal.name}`" :value="goal.name" class="mt-0.5" />
+              <span class="flex flex-col gap-0.5">
+                <strong>{{ titleCase(goal.name) }}</strong>
+                <span class="text-muted-foreground text-xs">{{ goal.summary }}</span>
+              </span>
+            </Label>
+          </RadioGroup>
+          <ul v-if="goalEffects.length" class="text-muted-foreground mt-0.5 mb-0 list-disc pl-[18px] text-xs">
+            <li v-for="(effect, i) in goalEffects" :key="i" class="[&+li]:mt-[3px]">{{ effect }}</li>
+          </ul>
+        </fieldset>
+
+        <div class="flex flex-wrap items-center gap-3 md:col-span-2">
+          <Button type="submit" :disabled="!canSave">
+            {{ busy ? 'Saving...' : 'Save profile' }}
+          </Button>
+          <span v-if="error" class="text-critical text-xs">{{ error }}</span>
+          <span v-else-if="!bodyweightKg" class="text-muted-foreground text-xs">
+            Bodyweight is the one answer we cannot guess.
+          </span>
+        </div>
+      </form>
+    </CardContent>
+  </Card>
 </template>
-
-<style scoped>
-.fields {
-  display: grid;
-  gap: 18px;
-}
-
-@media (min-width: 720px) {
-  .fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .span-2 {
-    grid-column: 1 / -1;
-  }
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-
-label,
-legend {
-  font-size: 13px;
-  font-weight: 500;
-  padding: 0;
-}
-
-input[type='number'],
-input[type='date'],
-select {
-  font: inherit;
-  font-size: 13px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-1);
-  color: var(--text-primary);
-  width: 100%;
-}
-
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--series-1);
-  outline-offset: 1px;
-}
-
-.hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.flag {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--critical);
-  margin-left: 4px;
-}
-
-.flag.optional {
-  color: var(--text-muted);
-}
-
-.goals {
-  gap: 10px;
-}
-
-.goal-options {
-  display: grid;
-  gap: 8px;
-}
-
-@media (min-width: 900px) {
-  .goal-options {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.goal {
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-weight: 400;
-}
-
-.goal:has(input:checked) {
-  border-color: var(--series-1);
-  background: color-mix(in srgb, var(--series-1) 6%, var(--surface-1));
-}
-
-.goal:has(input:focus-visible) {
-  outline: 2px solid var(--series-1);
-  outline-offset: 1px;
-}
-
-.goal input {
-  margin-top: 3px;
-  flex: none;
-  accent-color: var(--series-1);
-}
-
-.goal span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.goal-sub {
-  font-size: 12px;
-}
-
-.effects {
-  margin: 2px 0 0;
-  padding-left: 18px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.effects li + li {
-  margin-top: 3px;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.save {
-  padding: 8px 16px;
-  font-size: 13px;
-}
-
-.ok {
-  font-size: 12px;
-  color: var(--success-text);
-}
-
-.bad {
-  font-size: 12px;
-  color: var(--critical);
-}
-
-code {
-  font-size: 11px;
-  background: var(--page);
-  padding: 2px 5px;
-  border-radius: 4px;
-}
-</style>
