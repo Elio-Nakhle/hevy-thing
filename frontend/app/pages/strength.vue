@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /** Strength standards: every mappable lift against its bodyweight-adjusted bands. */
 import { computed } from 'vue'
-import type { BenchmarkReport } from '~/types/api'
+import type { BenchmarkReport, Profile } from '~/types/api'
 import { fullDate, titleCase } from '~/utils/format'
 
 const { unit, amount, weight } = useUnits()
 
 const { data: report, pending } = await useFetch<BenchmarkReport>('/api/benchmark', { query: { days: 365 } })
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
 const entries = computed(() => report.value?.entries ?? [])
 const overall = computed(() => report.value?.overall_level_score ?? null)
@@ -27,17 +28,26 @@ const overallPct = computed(() =>
       <h1>Strength standards</h1>
       <p v-if="report" class="secondary">
         {{ titleCase(report.sex) }} - {{ weight(report.bodyweight_kg) }}
-        <span class="muted">({{ report.bodyweight_source }})</span>
+        <span class="muted">(<Term id="bodyweight_source" />: {{ report.bodyweight_source }})</span>
         <template v-if="report.age"> - age {{ report.age }}</template>
       </p>
     </div>
 
     <section v-if="caveats.length" class="card caveat-card">
       <p v-for="(caveat, i) in caveats" :key="i" class="caveat">{{ caveat }}</p>
+      <p v-if="report?.bodyweight_source === 'default'" class="caveat">
+        <NuxtLink to="/settings">Set your bodyweight</NuxtLink> and every band below is
+        recomputed.
+      </p>
     </section>
 
+    <p v-if="profile?.tracks_total" class="elsewhere secondary">
+      Your training total and its DOTS score are on the
+      <NuxtLink to="/total">Total</NuxtLink> page.
+    </p>
+
     <section v-if="overall !== null" class="card hero-card">
-      <span class="tile-label secondary">Overall level</span>
+      <span class="tile-label secondary">Overall <Term id="level" /></span>
       <div class="hero-row">
         <span class="hero">{{ report?.overall_level }}</span>
         <span class="hero-score secondary">{{ overall.toFixed(2) }} / 4</span>
@@ -53,15 +63,17 @@ const overallPct = computed(() =>
         <span class="hero-marker" :style="{ left: `${overallPct}%` }" />
       </div>
       <p class="secondary hero-note">
-        The mean of every benchmarked lift below, on the same scale each row uses:
-        0 beginner, 2 intermediate, 4 elite.
+        The mean <Term id="level_score" /> of every lift below: 0 beginner, 2 intermediate,
+        4 elite. This is where you stand against other lifters - for whether you are
+        getting stronger, the <NuxtLink to="/">dashboard</NuxtLink> answers against your own
+        past self.
       </p>
     </section>
 
     <section class="card rows-card" :class="{ stale: pending }">
       <div class="card-head"><h2 class="card-title">By lift</h2></div>
       <p class="card-sub">
-        Best estimated 1RM in the last year, placed on the bands for your bodyweight.
+        Best <Term id="e1rm" /> in the last year, placed on the bands for your bodyweight.
         Hover a band to see its threshold.
       </p>
 
@@ -100,7 +112,7 @@ const overallPct = computed(() =>
           <thead>
             <tr>
               <th>Exercise</th>
-              <th>e1RM ({{ unit }})</th>
+              <th><Term id="e1rm" capitalize /> ({{ unit }})</th>
               <th>Beginner</th>
               <th>Novice</th>
               <th>Intermediate</th>
@@ -127,10 +139,10 @@ const overallPct = computed(() =>
         Standards from
         <a href="https://strengthlevel.com/strength-standards" target="_blank" rel="noopener">
           strengthlevel.com
-        </a>, interpolated to your exact bodyweight. The band names are percentiles of
-        lifts logged on that site - beginner is the 5th, novice the 20th, intermediate
-        the 50th, advanced the 80th, elite the 95th - so they rank you against people
-        who track their training, not against the general population.
+        </a>, interpolated to your exact bodyweight. The band names are
+        <Term id="percentile" />s of lifts logged on that site - beginner is the 5th, novice
+        the 20th, intermediate the 50th, advanced the 80th, elite the 95th - so they rank you
+        against people who track their training, not against the general population.
       </p>
     </section>
 
@@ -182,6 +194,11 @@ const overallPct = computed(() =>
 
 .page-head p {
   margin: 0;
+  font-size: 13px;
+}
+
+.elsewhere {
+  margin: 0 0 16px;
   font-size: 13px;
 }
 

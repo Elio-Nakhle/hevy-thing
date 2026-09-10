@@ -2,12 +2,13 @@
 /** Dashboard: headline stats, volume over time, muscle balance, and findings. */
 import { computed, ref } from 'vue'
 import type {
+  Headline,
   Health,
-  ImportResult,
   Insight,
   MuscleVolume,
   Overview,
   PersonalRecord,
+  Profile,
   WeeklyVolume,
 } from '~/types/api'
 import { compact, fullDate, titleCase } from '~/utils/format'
@@ -29,31 +30,13 @@ const { data: muscles } = await useFetch<MuscleVolume[]>('/api/volume/muscle-gro
 const { data: insights } = await useFetch<Insight[]>('/api/insights', { query: { days: 180 } })
 const { data: records } = await useFetch<PersonalRecord[]>('/api/records', { query: { days: 180, limit: 6 } })
 
+const { data: headline } = await useFetch<Headline>('/api/headline')
 const { data: health } = await useFetch<Health>('/api/health')
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
-const importing = ref(false)
-const importMessage = ref('')
-
-/** Import the newest CSV export sitting in the backend's workouts folder. */
-async function runImport() {
-  importing.value = true
-  importMessage.value = ''
-  try {
-    const result = await $fetch<ImportResult>('/api/import', { method: 'POST' })
-    importMessage.value = result.summary
-    await refreshNuxtData()
-  } catch (error: unknown) {
-    const failure = error as { data?: { detail?: string }; statusCode?: number }
-    // A 502 is the dev proxy telling us nothing is listening on the API port.
-    importMessage.value =
-      failure?.data?.detail
-      ?? (failure?.statusCode === 502
-        ? 'Cannot reach the API - start it with `uv run hevy-coach serve`.'
-        : 'Import failed.')
-  } finally {
-    importing.value = false
-  }
-}
+/** Ask for the profile once there is a log for it to be wrong about - a form in
+ *  front of an empty dashboard is friction before any payoff. */
+const askForProfile = computed(() => Boolean(overview.value?.workouts && profile.value?.needs_setup))
 
 const bars = computed(() =>
   (weekly.value ?? []).map((week) => ({ label: week.week_start, value: convert(week.volume_kg) })),
@@ -82,36 +65,26 @@ const severityColor: Record<string, string> = {
   <div>
     <div class="page-head">
       <h1>Dashboard</h1>
-      <div class="head-actions">
-        <span v-if="importMessage" class="secondary import-msg">{{ importMessage }}</span>
-        <span v-else-if="health?.imported_file" class="secondary import-msg">
-          {{ health.imported_file }}
-        </span>
-        <button
-          class="btn btn-primary"
-          type="button"
-          :disabled="importing"
-          :title="health?.available_export
-            ? `Import ${health.available_export}`
-            : 'Import the newest CSV export in the workouts folder'"
-          @click="runImport"
-        >
-          {{ importing ? 'Importing...' : 'Import export' }}
-        </button>
-      </div>
+      <ImportDropzone
+        v-if="overview?.workouts"
+        compact
+        :hint="health?.imported_file"
+        :available-export="health?.available_export"
+        @imported="refreshNuxtData()"
+      />
     </div>
 
-    <div v-if="overview && overview.workouts === 0" class="card empty-state">
-      <h2>No training data yet</h2>
-      <p class="secondary">
-        Export your history from Hevy (Profile &rarr; Settings &rarr; Export Data), drop the
-        CSV into the <code>workouts/</code> folder and press <strong>Import export</strong> -
-        the newest file there is the one that gets read. To try the app without an export,
-        run <code>uv run hevy-coach demo</code> in the backend.
-      </p>
-    </div>
+    <ImportDropzone
+      v-if="!overview?.workouts"
+      :available-export="health?.available_export"
+      @imported="refreshNuxtData()"
+    />
 
     <template v-else>
+      <HeadlineCard :headline="headline" class="lead" />
+
+      <ProfileForm v-if="askForProfile" first-run class="setup" />
+
       <div class="grid grid-4 tiles" :class="{ stale: overviewPending }">
         <StatTile
           label="Workouts"
@@ -119,20 +92,19 @@ const severityColor: Record<string, string> = {
           :spark="spark"
         />
         <StatTile
-          label="Total volume"
           :value="compact(convert(overview?.total_volume_kg ?? 0))"
           :unit="unit"
           :delta="volumeDelta"
           delta-label="vs previous 4 weeks"
-        />
-        <StatTile
-          label="Sessions per week"
-          :value="String(overview?.avg_workouts_per_week ?? 0)"
-        />
-        <StatTile
-          label="Working sets"
-          :value="compact(overview?.total_sets ?? 0)"
-        />
+        >
+          <template #label>Total <Term id="volume" /></template>
+        </StatTile>
+        <StatTile :value="String(overview?.avg_workouts_per_week ?? 0)">
+          <template #label><Term id="sessions_per_week" capitalize /></template>
+        </StatTile>
+        <StatTile :value="compact(overview?.total_sets ?? 0)">
+          <template #label><Term id="working_set" capitalize />s</template>
+        </StatTile>
       </div>
 
       <div class="filters">
@@ -154,17 +126,24 @@ const severityColor: Record<string, string> = {
 
       <div class="grid grid-2">
         <ChartCard
-          title="Weekly training volume"
-          subtitle="Tonnage per week from working sets. Warm-ups excluded."
           :empty="bars.length === 0"
         >
+          <template #title>Weekly <Term id="volume" /></template>
+          <template #subtitle>
+            Weight moved per week across <Term id="working_set" />s. Warm-ups excluded.
+          </template>
           <div :class="{ stale: weeklyPending }">
             <ColumnChart :bars="bars" :unit="unit" />
           </div>
           <template #table>
             <table class="data-table">
               <thead>
-                <tr><th>Week of</th><th>Volume ({{ unit }})</th><th>Sets</th><th>Sessions</th></tr>
+                <tr>
+                  <th>Week of</th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                  <th>Sets</th>
+                  <th>Sessions</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="week in [...(weekly ?? [])].reverse()" :key="week.week">
@@ -180,14 +159,21 @@ const severityColor: Record<string, string> = {
 
         <ChartCard
           title="Muscle balance"
-          subtitle="Working sets per week over the last 4 weeks. Secondary muscles count as half a set."
           :empty="(muscles ?? []).length === 0"
         >
+          <template #subtitle>
+            <Term id="sets_per_week" capitalize /> over the last 4 weeks. An exercise's
+            secondary muscles count as half a set each.
+          </template>
           <MuscleVolumeChart :groups="muscles ?? []" />
           <template #table>
             <table class="data-table">
               <thead>
-                <tr><th>Muscle group</th><th>Sets/week</th><th>Volume ({{ unit }})</th></tr>
+                <tr>
+                  <th>Muscle group</th>
+                  <th><Term id="sets_per_week" capitalize /></th>
+                  <th><Term id="volume" capitalize /> ({{ unit }})</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="group in muscles ?? []" :key="group.muscle_group">
@@ -220,12 +206,21 @@ const severityColor: Record<string, string> = {
         </section>
 
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Recent personal records</h2></div>
-          <p class="card-sub">Sessions where estimated 1RM beat everything before it.</p>
+          <div class="card-head">
+            <h2 class="card-title">Recent <Term id="pr" />s</h2>
+          </div>
+          <p class="card-sub">
+            Sessions where your <Term id="e1rm" /> beat everything before it.
+          </p>
           <p v-if="(records ?? []).length === 0" class="empty">No PRs in the last 180 days.</p>
           <table v-else class="data-table">
             <thead>
-              <tr><th>Exercise</th><th>Set</th><th>e1RM</th><th>Date</th></tr>
+              <tr>
+                <th>Exercise</th>
+                <th>Set</th>
+                <th><Term id="e1rm" capitalize /></th>
+                <th>Date</th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="record in records ?? []" :key="`${record.template_id}${record.date}`">
@@ -252,14 +247,13 @@ const severityColor: Record<string, string> = {
   flex-wrap: wrap;
 }
 
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.lead {
+  margin-bottom: 16px;
 }
 
-.import-msg {
-  font-size: 12px;
+.setup {
+  margin-bottom: 20px;
+  border-left: 3px solid var(--warning);
 }
 
 .tiles {
@@ -268,23 +262,6 @@ const severityColor: Record<string, string> = {
 
 .second-row {
   margin-top: 16px;
-}
-
-.empty-state {
-  padding: 40px;
-  text-align: center;
-}
-
-.empty-state p {
-  margin: 10px auto 0;
-  max-width: 46ch;
-}
-
-code {
-  font-size: 12px;
-  background: var(--page);
-  padding: 2px 6px;
-  border-radius: 5px;
 }
 
 .insight-list {

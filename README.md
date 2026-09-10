@@ -8,9 +8,9 @@ serves them to a Nuxt frontend and a CLI. Everything runs locally against your
 own data.
 
 ```
-workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
-                                          \->  CLI
-                                          \->  Claude (coach)
+upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
+                                                    \->  CLI
+                                                    \->  Claude (coach)
 ```
 
 ## What it does
@@ -29,27 +29,62 @@ workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
   built on other populations put the same lift a band or two higher.
 - **Findings** - rule-based insights: stalls, regressions, dormant lifts, low
   weekly volume, and lifts that lag their own variations by a full level.
+- **Your total** - on a strength or powerlifting goal, a **Total** page adds up
+  the lifts that goal is judged on, scores them with DOTS, and breaks down what
+  the next DOTS marker costs: the gap split across squat, bench and deadlift in
+  proportion to what each already contributes, snapped to 2.5 kg jumps. It is a
+  *training* total, built from estimated 1RMs, so it reads higher than what you
+  would hit on the platform - the page says so. DOTS is scored on squat, bench
+  and deadlift only, whatever else the goal totals, because that is the total
+  the coefficients were fitted to. The page is offered only for a goal that has
+  a total; hypertrophy is judged on weekly volume instead.
 - **Session plans** - open any workout for what it did to each lift and what to
   load the next time that routine comes round. Prescriptions use double
   progression, with the load increment read from the jumps you actually make and
   deload/hold branches for lifts that have stopped responding. See
   [Next-session prescriptions](#next-session-prescriptions).
+- **Next session, on your phone** - `/next` is a one-column view of the
+  prescriptions for whichever routine is due, sized for reading at the rack. It
+  works out what is due from what you actually train: a routine has to repeat
+  and to have been trained in the last four weeks, so a dropped programme or a
+  week of hotel-gym improvising cannot sit at the top of the list. Trying five
+  routines is not committing to five - the rest stay one tap away, and you can
+  put a routine away for good when the dates alone cannot know you are done
+  with it.
 - **Coach** - Claude with read-only tools over the log, so answers come from
   your actual numbers.
+
+Two things about how it reads. The dashboard **leads with one sentence** - are
+you getting stronger, and what changes next session - measured against your own
+past self, with the percentile kept on the strength page where you go looking
+for it. And every derived number carries **where it came from**: hover any term
+for a one-line account of how it was computed and what not to trust about it,
+or hit **Plain** in the header to rename the whole surface (`e1RM` becomes
+"estimated best single"). Both come from one table,
+[`provenance.py`](backend/src/hevy_coach/provenance.py), so a tooltip cannot
+describe something other than what its label says.
 
 ## Getting your data in
 
 The developer API needs a Hevy Pro subscription; the CSV export does not, so
 that is what this reads.
 
-1. In the Hevy app: **Profile -> Settings -> Export Data**. You get a CSV by
-   email.
-2. Drop it in [`workouts/`](workouts/). Any filename works.
-3. Import it - the **newest CSV in the folder** is the one that gets read:
+In the Hevy app: **Profile -> Settings -> Export Data**. You get a CSV by email.
+Then either:
 
-   ```bash
-   cd backend && uv run hevy-coach import
-   ```
+**In the browser.** Drop the CSV on the dashboard, or click **Import CSV** in the
+header. No terminal.
+
+**On the command line.** Drop the file in [`workouts/`](workouts/) - any filename
+works - and run the import. The **newest CSV in the folder** is the one that gets
+read.
+
+```bash
+cd backend && uv run hevy-coach import
+```
+
+The two are the same path: an upload is saved into `workouts/` and imported from
+there, so the browser and the CLI always agree about which export is current.
 
 Re-importing is safe: workout identity is derived from the start time, so an
 updated export updates rows rather than duplicating them. An export is your
@@ -65,7 +100,7 @@ uv tool install invoke    # task runner; `inv --list` for everything below
 inv setup                 # copies .env.example, uv sync, npm install
 ```
 
-Then set your bodyweight, sex and birth date in `.env`. Without invoke:
+Without invoke:
 
 ```bash
 cp .env.example .env
@@ -73,14 +108,28 @@ cd backend && uv sync
 cd ../frontend && npm install
 ```
 
-`.env` is read from the repository root. The setting you really need is your
-bodyweight: every standard is indexed on it, so leaving it unset falls back to a
-placeholder 80 kg and shifts your levels by whole bands. The report says
-`(default)` and prints a caveat when that happens.
+Nothing needs editing by hand. The app asks for the lifter profile on first run
+and writes your answers to `.env` (read from the repository root), which is also
+what the CLI reads - so there is one place a value can come from. **Settings**
+edits it later.
 
-Set `DUMBBELL_LOAD=combined` if you type the pair's total weight for
-two-dumbbell movements. The tables are published per dumbbell - what Hevy asks
-for - so a combined log otherwise scores at double.
+### Why it asks
+
+Six values decide what most of the analysis *says*:
+
+| Value | What it changes |
+| --- | --- |
+| **Bodyweight** | Every standard is indexed on it. On the log in this repo, the placeholder 80 kg reads as *novice* and the real 55 kg as *advanced* - the same lifts, two whole bands apart. |
+| **Sex** | Which published table each lift is scored against. |
+| **Training goal** | Every volume and frequency threshold in `goals.py`. Switching hypertrophy to powerlifting on that same log turns 25 findings into 15 and swaps a low-volume warning for heavy-exposure and main-lift-frequency ones. |
+| **Birth date** | Enables the age adjustment on the standards. Optional. |
+| **Dumbbell loads** | `combined` if you type the pair's total. The tables are published per dumbbell - what Hevy asks for - so a combined log otherwise scores at double. |
+| **Units** | Display only. Everything is stored and calculated in kilograms. |
+
+A key commented out in `.env` is *unset*, which the app tells apart from a value
+you chose: unset is what makes it offer the form, and what makes the strength
+page admit a number is a stand-in rather than presenting it as yours. Only
+bodyweight is required - it is the one answer that cannot be guessed.
 
 ## Running it
 
@@ -88,7 +137,13 @@ for - so a combined log otherwise scores at double.
 inv hevy-thing              # API on :8000 and UI on :3000; Ctrl-C stops both
 inv hevy-thing.backend      # just the API
 inv hevy-thing.frontend     # just the UI
+inv hevy-thing --lan        # also reachable from your phone, for /next
 ```
+
+`--lan` binds the UI to every interface so a phone on the same network can open
+it - the point of the `/next` view. Only the UI is exposed; the browser's `/api`
+requests are proxied by the Nuxt server, which reaches the backend over
+loopback, so the API stays bound to localhost either way.
 
 Ports are flags: `--api-port` / `--web-port` on the combined task, `--port` on
 either single one. The combined task also points the frontend's proxy at

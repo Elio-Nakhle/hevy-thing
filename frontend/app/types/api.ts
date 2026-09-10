@@ -24,13 +24,53 @@ export interface Health {
   available_export: string | null
 }
 
+export type Sex = 'male' | 'female'
+export type Units = 'kg' | 'lb'
+export type DumbbellLoad = 'per_dumbbell' | 'combined'
+export type Goal = 'hypertrophy' | 'strength' | 'powerlifting'
+
+/** Fields of the profile the setup form writes. Keys of `Profile.unset`. */
+export type ProfileField =
+  | 'sex'
+  | 'bodyweight_kg'
+  | 'birth_date'
+  | 'units'
+  | 'dumbbell_load'
+  | 'training_goal'
+
 export interface Profile {
-  sex: 'male' | 'female'
+  sex: Sex
+  /** The bodyweight the analysis uses; a logged measurement outranks the configured one. */
   bodyweight_kg: number
-  bodyweight_source: 'measured' | 'configured'
+  bodyweight_source: 'measured' | 'configured' | 'default'
+  /** What the user typed, which is what the form has to show. */
+  configured_bodyweight_kg: number
+  birth_date: string | null
   age: number | null
-  units: 'kg' | 'lb'
+  units: Units
+  dumbbell_load: DumbbellLoad
+  training_goal: Goal
+  training_goal_summary: string
+  /** Whether this goal is judged on a total, which gates the Total page. */
+  tracks_total: boolean
   coach_model: string
+  /** Profile fields nobody supplied, so a default is standing in. */
+  unset: ProfileField[]
+  /** True while something the analysis leans on is still a stand-in. */
+  needs_setup: boolean
+  /** Absolute path of the .env file a save lands in. */
+  env_file: string
+}
+
+/** What choosing a training goal changes, from `goals.py`. */
+export interface GoalProfile {
+  name: Goal
+  summary: string
+  low_weekly_sets: number | null
+  min_heavy_sets_per_week: number | null
+  min_main_lift_frequency: number | null
+  main_lifts: string[]
+  tracks_total: boolean
 }
 
 export interface ImportResult {
@@ -42,6 +82,91 @@ export interface ImportResult {
   /** Exercise titles with no muscle mapping; they count as "other". */
   unmapped: string[]
   errors: string[]
+  summary: string
+}
+
+/** One entry in the provenance glossary. See `backend/src/hevy_coach/provenance.py`. */
+export interface Term {
+  key: string
+  /** The technical name, shown when plain-language mode is off. */
+  term: string
+  /** What to call it in plain-language mode. */
+  plain: string
+  /** One line: where the number comes from, and what not to trust about it. */
+  detail: string
+  /** Attribution, where the number is not ours. */
+  source: string | null
+}
+
+export type Glossary = Record<string, Term>
+
+export type Verdict = 'progressing' | 'holding' | 'slipping' | 'insufficient_data'
+
+/** What changes the next time you train. */
+export interface NextUp {
+  title: string
+  workout_id: string
+  days_since: number
+  exercises: number
+  /** The prescriptions that change something, one line each. */
+  changes: string[]
+  summary: string
+}
+
+/** The dashboard's lead: "am I getting stronger", answered in one sentence. */
+export interface Headline {
+  verdict: Verdict
+  answer: string
+  lifts_tracked: number
+  lifts_up: number
+  lifts_flat: number
+  lifts_down: number
+  lifts_up_names: string[]
+  lifts_flat_names: string[]
+  lifts_down_names: string[]
+  /** Median of the per-lift trends, percent per month. Median, not mean: one
+   *  accessory taken from 12 kg to 73 kg reads as +82% and would carry the lot. */
+  median_change_pct_per_month: number | null
+  window_days: number
+  next_up: NextUp | null
+}
+
+/** A routine, how long it has been waiting, and whether it is still on. */
+export interface RoutineDue {
+  title: string
+  /** Most recent run, which the prescriptions are computed from. */
+  workout_id: string
+  last_performed: string
+  days_since: number
+  runs: number
+  /** The lifter put this one away. Sticky until they bring it back. */
+  dismissed: boolean
+  /** Part of the current rotation: repeats, trained recently, not put away. */
+  active: boolean
+}
+
+export interface NextSessionExercise {
+  template_id: string
+  title: string
+  muscle_group: string | null
+  equipment: string | null
+  order: number
+  last_top_weight_kg: number | null
+  /** Best set at that load. */
+  last_top_reps: number | null
+  last_top_set_count: number
+  /** Every set at the top load. The prescription progresses the worst of them. */
+  last_top_set_reps: number[]
+  sessions: number
+  recommendation: Recommendation
+}
+
+export interface NextSession {
+  routine: RoutineDue
+  exercises: NextSessionExercise[]
+  /** Every routine, most overdue first, so the view can switch. */
+  alternatives: RoutineDue[]
+  changes: string[]
   summary: string
 }
 
@@ -170,6 +295,76 @@ export interface UnmappedExercise {
   sessions: number
   best_e1rm_kg?: number | null
   reason?: string
+}
+
+export interface TotalEntry {
+  lift: string
+  title: string
+  template_id: string
+  e1rm_kg: number
+  last_performed: string | null
+  sessions: number
+  /** Share of the total, as a percentage. */
+  share: number
+}
+
+export interface LiftRatio {
+  lift: string
+  title: string
+  ratio: number
+  expected: number
+  verdict: 'lagging' | 'leading' | 'typical'
+}
+
+/** One lift's share of the work needed to reach a DOTS marker. */
+export interface MilestoneLift {
+  lift: string
+  title: string
+  e1rm_kg: number
+  /** What to add, rounded to a loadable jump. */
+  add_kg: number
+  target_kg: number
+}
+
+/** The next DOTS marker, and a route to it split across the three lifts. */
+export interface Milestone {
+  dots: number
+  /** Squat+bench+deadlift total that marker needs. */
+  total_kg: number
+  add_total_kg: number
+  lifts: MilestoneLift[]
+  /** What the rounded targets actually produce. Meets or clears `dots`. */
+  reaches_total_kg: number
+  reaches_dots: number | null
+  /** A nearer marker already in reach, skipped because a couple of kilos split
+   *  three ways is not a plan. Null when there is none. */
+  near_dots: number | null
+  near_add_total_kg: number | null
+}
+
+/** The total of the goal's main lifts, plus DOTS on the competition three. */
+export interface TotalReport {
+  goal: Goal
+  /** False for hypertrophy, whose main lifts are empty. */
+  tracks_total: boolean
+  sex: string
+  bodyweight_kg: number
+  bodyweight_clamped: boolean
+  /** Sum of the goal's main lifts - four of them for general strength. */
+  total_kg: number
+  /** Scored on squat+bench+deadlift only. Null when one of the three is missing. */
+  dots: number | null
+  /** The squat+bench+deadlift total DOTS came from. Differs from `total_kg`
+   *  whenever the goal totals something other than those three. */
+  dots_total_kg: number | null
+  entries: TotalEntry[]
+  /** Main lifts the goal names that are absent from the log. */
+  missing: string[]
+  /** Which of the three DOTS lifts are absent, so the UI can say why. */
+  dots_missing: string[]
+  ratios: LiftRatio[]
+  /** The next DOTS marker and how to get there. Null without a DOTS score. */
+  milestone: Milestone | null
 }
 
 export interface BenchmarkReport {

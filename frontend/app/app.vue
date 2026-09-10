@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import type { Profile } from '~/types/api'
 
 const theme = ref<'light' | 'dark' | 'system'>('system')
+const { plain, togglePlain, restorePlain } = useGlossary()
+
+// Same shared key as `useUnits`, so this costs no extra request.
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
 onMounted(() => {
   const stored = localStorage.getItem('hevy-coach-theme')
   if (stored === 'light' || stored === 'dark') applyTheme(stored)
+  // Read after mount, not during setup: the server has no localStorage, and
+  // deciding the wording during render would make the two disagree.
+  restorePlain()
 })
 
 function applyTheme(next: 'light' | 'dark' | 'system') {
@@ -24,13 +32,18 @@ function cycleTheme() {
   applyTheme(theme.value === 'light' ? 'dark' : theme.value === 'dark' ? 'system' : 'light')
 }
 
-const links = [
+/** The Total page is only meaningful for a goal judged on a total, so it is
+ *  offered only then - a hypertrophy log has no main lifts to add up. */
+const links = computed(() => [
   { to: '/', label: 'Dashboard' },
+  { to: '/next', label: 'Next session' },
+  ...(profile.value?.tracks_total ? [{ to: '/total', label: 'Total' }] : []),
   { to: '/workouts', label: 'Workouts' },
   { to: '/strength', label: 'Strength' },
   { to: '/exercises', label: 'Exercises' },
   { to: '/coach', label: 'Coach' },
-]
+  { to: '/settings', label: 'Settings' },
+])
 </script>
 
 <template>
@@ -43,7 +56,18 @@ const links = [
             {{ link.label }}
           </NuxtLink>
         </nav>
-        <button class="btn theme-btn" type="button" @click="cycleTheme">
+        <button
+          class="btn toggle"
+          type="button"
+          :title="plain
+            ? 'Switch to the technical names for each number'
+            : 'Rename every number in plain English'"
+          :aria-pressed="plain"
+          @click="togglePlain"
+        >
+          {{ plain ? 'Plain' : 'Technical' }}
+        </button>
+        <button class="btn toggle" type="button" @click="cycleTheme">
           {{ theme === 'system' ? 'Auto' : theme === 'dark' ? 'Dark' : 'Light' }}
         </button>
       </div>
@@ -104,7 +128,7 @@ nav {
   font-weight: 500;
 }
 
-.theme-btn {
+.toggle {
   flex: none;
 }
 

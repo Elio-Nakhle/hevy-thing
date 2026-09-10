@@ -267,3 +267,388 @@ class TestWorkoutDetail:
         assert [w.id for w in listed] == ["w3", "w2", "w1", "w0"]
         assert (listed[0].routine_index, listed[0].routine_runs) == (3, 3)
         assert (listed[1].routine_index, listed[1].routine_runs) == (1, 1)
+
+
+# -- which routine is due ---------------------------------------------------
+
+
+def _settings(tmp_path: object) -> Settings:
+    return Settings(  # type: ignore[operator]
+        _env_file=None, database_path=tmp_path / "next.db", bodyweight_kg=80.0
+    )
+
+
+def _rotation(db: Database) -> None:
+    """Push/Pull alternating, Pull run most recently - so Push is due."""
+    db.upsert_templates(
+        [
+            ExerciseTemplate(
+                id=TEMPLATE, title="Bench Press (Barbell)", equipment_category="barbell"
+            ),
+            ExerciseTemplate(id=OTHER, title="Squat (Barbell)", equipment_category="barbell"),
+        ]
+    )
+    db.upsert_workouts(
+        [
+            _workout(1, [(60.0, 8), (60.0, 8)], title="Push", days_ago=14),
+            _workout(2, [(80.0, 8), (80.0, 8)], title="Pull", days_ago=11, template=OTHER),
+            _workout(3, [(60.0, 10), (60.0, 10)], title="Push", days_ago=7),
+            _workout(4, [(80.0, 10), (80.0, 10)], title="Pull", days_ago=4, template=OTHER),
+        ]
+    )
+
+
+def test_routines_due_lists_longest_unused_first(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    due = session.routines_due(db)
+
+    assert [routine.title for routine in due] == ["Push", "Pull"]
+    assert due[0].runs == 2
+    assert due[0].days_since == 7
+
+
+def test_the_routine_you_did_least_recently_is_due(tmp_path) -> None:
+    """After Pull, Push is next - not a repeat of what you just did."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Push"
+    assert upcoming.routine.workout_id == "w3"
+
+
+def test_prescriptions_come_from_that_routine_last_run(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert [exercise.title for exercise in upcoming.exercises] == ["Bench Press (Barbell)"]
+    exercise = upcoming.exercises[0]
+    assert exercise.last_top_weight_kg == 60.0
+    assert exercise.last_top_reps == 10
+    assert exercise.last_top_set_count == 2
+    assert exercise.last_top_set_reps == [10, 10]
+    # Top of the 6-10 band on both sets, so the next run adds load.
+    assert exercise.recommendation.action == "add_load"
+    assert exercise.recommendation.target_weight_kg is not None
+
+
+def test_a_named_routine_overrides_what_is_due(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    upcoming = session.next_session(db, _settings(tmp_path), title="Pull")
+
+    assert upcoming.routine.title == "Pull"
+    assert [exercise.title for exercise in upcoming.exercises] == ["Squat (Barbell)"]
+
+
+def test_every_routine_is_offered_as_an_alternative(tmp_path) -> None:
+    """The rack view needs them: what is due is a guess, not a plan."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert [routine.title for routine in upcoming.alternatives] == ["Push", "Pull"]
+
+
+def test_an_unknown_routine_is_a_lookup_error(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    with pytest.raises(LookupError, match="Legs"):
+        session.next_session(db, _settings(tmp_path), title="Legs")
+
+
+def test_an_empty_log_has_no_next_session(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+
+    with pytest.raises(LookupError, match="no workouts"):
+        session.next_session(db, _settings(tmp_path))
+
+
+def test_a_stale_one_off_is_selectable_but_never_predicted(tmp_path) -> None:
+    """It stays in `alternatives` - the lifter may want it - but is not a guess."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.upsert_workouts([_workout(9, [(40.0, 10)], title="Hotel gym", days_ago=90)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Push"
+    # Still selectable, just not predicted.
+    assert "Hotel gym" in [routine.title for routine in upcoming.alternatives]
+
+
+def test_an_abandoned_routine_does_not_stay_due_forever(tmp_path) -> None:
+    """The bug this rule exists for. A real Hevy log accumulates titles - Hevy's
+    own "Afternoon workout", a dropped routine, a week of improvising - and every
+    one of them is more overdue than what the lifter actually trains, so "most
+    overdue" alone reliably picks the least relevant thing in the log."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.upsert_workouts(
+        [
+            _workout(7, [(50.0, 8)], title="Afternoon workout", days_ago=104),
+            _workout(8, [(50.0, 8)], title="Afternoon workout", days_ago=110),
+        ]
+    )
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Push"
+
+
+def test_after_a_layoff_you_resume_the_last_thing_you_did(tmp_path) -> None:
+    """Nothing is inside the active window, so there is no rotation to infer."""
+    db = Database(tmp_path / "next.db")
+    db.upsert_templates(
+        [
+            ExerciseTemplate(
+                id=TEMPLATE, title="Bench Press (Barbell)", equipment_category="barbell"
+            )
+        ]
+    )
+    db.upsert_workouts(
+        [
+            _workout(1, [(60.0, 8)], title="Old A", days_ago=200),
+            _workout(2, [(60.0, 8)], title="Old A", days_ago=190),
+            _workout(3, [(60.0, 8)], title="Old B", days_ago=180),
+            _workout(4, [(60.0, 8)], title="Old B", days_ago=170),
+        ]
+    )
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Old B"
+
+
+def test_a_single_active_routine_is_simply_repeated(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    db.upsert_templates(
+        [
+            ExerciseTemplate(
+                id=TEMPLATE, title="Bench Press (Barbell)", equipment_category="barbell"
+            )
+        ]
+    )
+    db.upsert_workouts(
+        [
+            _workout(1, [(60.0, 8)], title="Full body", days_ago=7),
+            _workout(2, [(60.0, 8)], title="Full body", days_ago=3),
+        ]
+    )
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Full body"
+
+
+def test_a_recent_one_off_does_not_outrank_the_programme(tmp_path) -> None:
+    """"Baku hotel gym", logged once nine days ago, is recent but not a routine."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.upsert_workouts([_workout(7, [(40.0, 10)], title="Baku hotel gym", days_ago=9)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Push"
+
+
+def test_a_log_with_no_repeats_still_gets_a_prescription(tmp_path) -> None:
+    """Nothing repeats, so there is no rotation to infer - answer anyway."""
+    db = Database(tmp_path / "next.db")
+    db.upsert_templates(
+        [
+            ExerciseTemplate(
+                id=TEMPLATE, title="Bench Press (Barbell)", equipment_category="barbell"
+            )
+        ]
+    )
+    db.upsert_workouts([_workout(1, [(60.0, 8)], title="Only one", days_ago=3)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Only one"
+    assert upcoming.exercises
+
+
+# -- the one-line summary ---------------------------------------------------
+
+
+def test_summary_names_what_changes(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.summary.startswith("Push is up next -")
+    assert "add weight on Bench Press (Barbell)" in upcoming.summary
+    prescribed = upcoming.exercises[0].recommendation.headline
+    assert upcoming.changes == [f"Bench Press (Barbell): {prescribed}"]
+
+
+def _one_lift(db: Database, *sessions: tuple[list[tuple[float | None, int]], int]) -> None:
+    db.upsert_templates(
+        [
+            ExerciseTemplate(
+                id=TEMPLATE, title="Bench Press (Barbell)", equipment_category="barbell"
+            )
+        ]
+    )
+    db.upsert_workouts(
+        [
+            _workout(index, sets, title="Push", days_ago=days_ago)
+            for index, (sets, days_ago) in enumerate(sessions, start=1)
+        ]
+    )
+
+
+def test_summary_says_chase_reps_mid_range(tmp_path) -> None:
+    """8 reps sits inside the 6-10 band, so the load holds and the reps go up."""
+    db = Database(tmp_path / "next.db")
+    _one_lift(db, ([(60.0, 8), (60.0, 8)], 10), ([(60.0, 8), (60.0, 8)], 3))
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.exercises[0].recommendation.action == "add_reps"
+    assert upcoming.summary == "Push is up next - chase reps on Bench Press (Barbell)."
+
+
+def test_summary_says_back_off_on_a_stalled_lift(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _one_lift(db, *[([(60.0, 8), (60.0, 8)], 20 - i * 4) for i in range(1, 5)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.exercises[0].recommendation.action == "deload"
+    assert upcoming.summary == "Push is up next - back off on Bench Press (Barbell)."
+
+
+def test_summary_says_so_when_nothing_changes(tmp_path) -> None:
+    """A first session establishes a baseline; there is nothing to change yet."""
+    db = Database(tmp_path / "next.db")
+    _one_lift(db, ([(60.0, 8), (60.0, 8)], 3))
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.exercises[0].recommendation.action == "establish"
+    assert upcoming.summary == "Push is up next - same weights as last time."
+    assert upcoming.changes == []
+
+
+def test_name_list_caps_how_many_it_names() -> None:
+    assert session._name_list(["A"]) == "A"
+    assert session._name_list(["A", "B"]) == "A and B"
+    assert session._name_list(["A", "B", "C"]) == "A, B and 1 more"
+    assert session._name_list(["A", "B", "C", "D"]) == "A, B and 2 more"
+
+
+def test_the_last_session_reports_every_top_set(tmp_path) -> None:
+    """A 12 and a 10 at the same load must not read as "2 x 12": the
+    prescription progresses the worst set, so a target of 11 would look like a
+    step backwards from a number the lifter only hit once."""
+    db = Database(tmp_path / "next.db")
+    _one_lift(db, ([(32.0, 12), (32.0, 10)], 8), ([(32.0, 12), (32.0, 10)], 2))
+
+    exercise = session.next_session(db, _settings(tmp_path)).exercises[0]
+
+    assert exercise.last_top_reps == 12
+    assert exercise.last_top_set_reps == [12, 10]
+    assert exercise.recommendation.target_reps == 11
+
+
+# -- putting a routine away -------------------------------------------------
+
+
+def test_a_dismissed_routine_is_not_offered_or_predicted(tmp_path) -> None:
+    """Trying a routine is not committing to it."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Pull"
+    put_away = next(r for r in upcoming.alternatives if r.title == "Push")
+    assert put_away.dismissed is True
+    assert put_away.active is False
+
+
+def test_dismissal_survives_training_it_again(tmp_path) -> None:
+    """Sticky on purpose. A routine reappearing on its own would be the
+    surprising behaviour, and a log has plenty of reasons to contain one more
+    session of something the lifter is finished with."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.upsert_workouts([_workout(9, [(60.0, 10), (60.0, 10)], title="Push", days_ago=0)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Pull"
+
+
+def test_asking_for_a_dismissed_routine_by_name_still_works(tmp_path) -> None:
+    """Naming it is a stronger signal than having put it away."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path), title="Push")
+
+    assert upcoming.routine.title == "Push"
+    assert upcoming.exercises
+
+
+def test_restoring_a_routine_brings_it_back(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.set_routine_dismissed("Push", False)
+
+    assert session.next_session(db, _settings(tmp_path)).routine.title == "Push"
+
+
+def test_dismissing_everything_still_answers(tmp_path) -> None:
+    """A blank page would be worse than a guess the lifter can switch away from."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.set_routine_dismissed("Pull", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title in {"Push", "Pull"}
+    assert upcoming.exercises
+
+
+def test_only_the_current_rotation_is_active(tmp_path) -> None:
+    """`active` is what the switcher shows without being asked. On a real log
+    this is the difference between two chips and seven."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.upsert_workouts(
+        [
+            _workout(7, [(40.0, 10)], title="Baku hotel gym", days_ago=9),
+            _workout(8, [(50.0, 8)], title="Afternoon workout", days_ago=104),
+            _workout(9, [(50.0, 8)], title="Afternoon workout", days_ago=110),
+        ]
+    )
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    active = {r.title for r in upcoming.alternatives if r.active}
+    assert active == {"Push", "Pull"}
+    # Everything else is still reachable, just not offered up front.
+    assert {r.title for r in upcoming.alternatives} == {
+        "Push",
+        "Pull",
+        "Baku hotel gym",
+        "Afternoon workout",
+    }

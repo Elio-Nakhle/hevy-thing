@@ -60,9 +60,9 @@ const rows = computed(() => {
               <th>Exercise</th>
               <th>Sessions</th>
               <th>Sets</th>
-              <th>Best e1RM</th>
+              <th>Best <Term id="e1rm" /></th>
               <th>{{ unit }}/month</th>
-              <th>Trend</th>
+              <th><Term id="trend" capitalize /></th>
               <th>Last done</th>
             </tr>
           </thead>
