@@ -9,6 +9,13 @@ The total here is built from estimated 1RMs, not competition attempts, so it
 is a training number: an e1RM from a set of five is an estimate that flatters a
 lifter who never handles heavy singles. It answers "where is my training total
 now", not "what would I total on the platform".
+
+Two totals therefore come out of this, and they are not interchangeable.
+``total_kg`` sums whatever lifts the goal is judged on - four of them for a
+general-strength goal, which includes an overhead press. ``dots`` is scored
+only on squat, bench and deadlift, because that is the total the coefficients
+were fitted to; feeding a four-lift total to them produced a number that looked
+like a DOTS score and was worth about forty points of nothing.
 """
 
 from __future__ import annotations
@@ -30,6 +37,11 @@ DOTS_COEFFICIENTS = {
 #: The fit is only meaningful across the range it was built on; outside it the
 #: quartic misbehaves, so bodyweight is clamped and the report says so.
 DOTS_RANGE = {"male": (40.0, 210.0), "female": (40.0, 150.0)}
+
+#: The three lifts DOTS is defined on, in competition order. The coefficients
+#: are fitted to competition SBD totals, so any other combination of lifts
+#: scored through them is meaningless however plausible the output looks.
+DOTS_LIFTS = ("squat", "bench-press", "deadlift")
 
 #: Rough raw-lifter proportions relative to the squat. Wide tolerances - these
 #: exist to catch a lift that is genuinely lagging, not to police leverages.
@@ -66,15 +78,26 @@ class TotalEntry:
 @dataclass
 class TotalReport:
     goal: str
+    #: Whether this goal treats a total as a headline number at all. False for
+    #: hypertrophy, whose main_lifts are empty and whose total is therefore 0.
+    tracks_total: bool
     sex: str
     bodyweight_kg: float
     bodyweight_clamped: bool
-    #: Sum of the best e1RM for each main lift the goal names.
+    #: Sum of the best e1RM for each main lift the goal names - four of them for
+    #: a general-strength goal, three for powerlifting.
     total_kg: float
+    #: DOTS, scored on squat+bench+deadlift only. None when one of the three is
+    #: missing, because a partial total would flatter.
     dots: float | None
+    #: The squat+bench+deadlift total the DOTS score came from. Differs from
+    #: ``total_kg`` whenever the goal totals something other than those three.
+    dots_total_kg: float | None
     entries: list[TotalEntry] = field(default_factory=list)
     #: Main lifts the goal names that do not appear in the log at all.
     missing: list[str] = field(default_factory=list)
+    #: Which of the three DOTS lifts are absent, so the UI can say why.
+    dots_missing: list[str] = field(default_factory=list)
     #: Human-readable observations about lift proportions.
     ratios: list[dict[str, object]] = field(default_factory=list)
 
@@ -114,16 +137,25 @@ def total_report(db: Database, settings: Settings, *, days: int | None = 365) ->
     entries = [best[lift] for lift in profile.main_lifts if lift in best]
     missing = [lift for lift in profile.main_lifts if lift not in best]
 
+    # DOTS is scored on its own three lifts, not on the goal's, and only when
+    # all three are there: a partial total would flatter.
+    dots_missing = [lift for lift in DOTS_LIFTS if lift not in best]
+    dots_total = (
+        round(sum(best[lift].e1rm_kg for lift in DOTS_LIFTS), 1) if not dots_missing else None
+    )
+
     return TotalReport(
         goal=profile.name,
+        tracks_total=profile.tracks_total,
         sex=settings.sex,
         bodyweight_kg=bodyweight,
         bodyweight_clamped=not (low <= bodyweight <= high),
         total_kg=total,
-        # Only a complete total is comparable; a partial one would flatter.
-        dots=dots(total, bodyweight, settings.sex) if total and not missing else None,
+        dots=dots(dots_total, bodyweight, settings.sex) if dots_total else None,
+        dots_total_kg=dots_total,
         entries=entries,
         missing=missing,
+        dots_missing=dots_missing,
         ratios=_ratios(best),
     )
 

@@ -15,6 +15,7 @@ from hevy_coach import profile as profile_module
 from hevy_coach.analytics import headline as headline_module
 from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
+from hevy_coach.analytics.powerlifting import total_report
 from hevy_coach.analytics.standards import available_lifts, bands_for
 from hevy_coach.coach.agent import Coach
 from hevy_coach.config import Settings, get_settings
@@ -326,6 +327,17 @@ def get_standard(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return asdict(bands)
+
+
+@app.get("/api/total")
+def get_total(db: DbDep, settings: SettingsDep, days: int | None = 365) -> dict[str, Any]:
+    """The total of the goal's main lifts, and DOTS on the competition three.
+
+    A *training* total: it sums estimated 1RMs, which flatter a lifter who never
+    handles heavy singles, so it answers "where is my training total now" rather
+    than "what would I total on the platform".
+    """
+    return asdict(total_report(db, settings, days=days))
 
 
 @app.get("/api/benchmark")

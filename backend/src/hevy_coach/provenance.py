@@ -149,6 +149,28 @@ TERMS: tuple[Term, ...] = (
         source="strengthlevel.com",
     ),
     Term(
+        key="total",
+        term="training total",
+        plain="your three lifts added up",
+        detail=(
+            "Your best estimated single on each main lift, added together. A "
+            "training number, not a meet result: it is built from rep-max "
+            "estimates, so it reads higher than what you would hit on the "
+            "platform on the day."
+        ),
+    ),
+    Term(
+        key="dots",
+        term="DOTS",
+        plain="score for your bodyweight",
+        detail=(
+            "Your squat, bench and deadlift total adjusted for bodyweight, so "
+            "lifters of different sizes compare - around 400 is a strong raw "
+            "lifter. Scored on those three only, because that is the total the "
+            "formula was built for."
+        ),
+    ),
+    Term(
         key="prescription",
         term="prescription",
         plain="what to do next",

@@ -292,6 +292,48 @@ export interface UnmappedExercise {
   reason?: string
 }
 
+export interface TotalEntry {
+  lift: string
+  title: string
+  template_id: string
+  e1rm_kg: number
+  last_performed: string | null
+  sessions: number
+  /** Share of the total, as a percentage. */
+  share: number
+}
+
+export interface LiftRatio {
+  lift: string
+  title: string
+  ratio: number
+  expected: number
+  verdict: 'lagging' | 'leading' | 'typical'
+}
+
+/** The total of the goal's main lifts, plus DOTS on the competition three. */
+export interface TotalReport {
+  goal: Goal
+  /** False for hypertrophy, whose main lifts are empty. */
+  tracks_total: boolean
+  sex: string
+  bodyweight_kg: number
+  bodyweight_clamped: boolean
+  /** Sum of the goal's main lifts - four of them for general strength. */
+  total_kg: number
+  /** Scored on squat+bench+deadlift only. Null when one of the three is missing. */
+  dots: number | null
+  /** The squat+bench+deadlift total DOTS came from. Differs from `total_kg`
+   *  whenever the goal totals something other than those three. */
+  dots_total_kg: number | null
+  entries: TotalEntry[]
+  /** Main lifts the goal names that are absent from the log. */
+  missing: string[]
+  /** Which of the three DOTS lifts are absent, so the UI can say why. */
+  dots_missing: string[]
+  ratios: LiftRatio[]
+}
+
 export interface BenchmarkReport {
   sex: string
   bodyweight_kg: number

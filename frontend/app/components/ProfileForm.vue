@@ -112,7 +112,14 @@ const goalEffects = computed(() => {
       + `${goal.min_main_lift_frequency} sessions a week each.`,
     )
   }
-  if (goal.tracks_total) effects.push('Reports your competition total as a headline number.')
+  if (goal.tracks_total) {
+    // Name the lifts rather than saying "competition total": the general
+    // strength goal totals four of them, an overhead press included.
+    effects.push(
+      `Totals ${goal.main_lifts.map((lift) => titleCase(lift)).join(', ')} on the strength `
+      + 'page, with a DOTS score from squat, bench and deadlift.',
+    )
+  }
   return effects
 })
 
