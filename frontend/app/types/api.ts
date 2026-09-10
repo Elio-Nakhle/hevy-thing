@@ -51,6 +51,8 @@ export interface Profile {
   dumbbell_load: DumbbellLoad
   training_goal: Goal
   training_goal_summary: string
+  /** Whether this goal is judged on a total, which gates the Total page. */
+  tracks_total: boolean
   coach_model: string
   /** Profile fields nobody supplied, so a default is standing in. */
   unset: ProfileField[]
@@ -311,6 +313,32 @@ export interface LiftRatio {
   verdict: 'lagging' | 'leading' | 'typical'
 }
 
+/** One lift's share of the work needed to reach a DOTS marker. */
+export interface MilestoneLift {
+  lift: string
+  title: string
+  e1rm_kg: number
+  /** What to add, rounded to a loadable jump. */
+  add_kg: number
+  target_kg: number
+}
+
+/** The next DOTS marker, and a route to it split across the three lifts. */
+export interface Milestone {
+  dots: number
+  /** Squat+bench+deadlift total that marker needs. */
+  total_kg: number
+  add_total_kg: number
+  lifts: MilestoneLift[]
+  /** What the rounded targets actually produce. Meets or clears `dots`. */
+  reaches_total_kg: number
+  reaches_dots: number | null
+  /** A nearer marker already in reach, skipped because a couple of kilos split
+   *  three ways is not a plan. Null when there is none. */
+  near_dots: number | null
+  near_add_total_kg: number | null
+}
+
 /** The total of the goal's main lifts, plus DOTS on the competition three. */
 export interface TotalReport {
   goal: Goal
@@ -332,6 +360,8 @@ export interface TotalReport {
   /** Which of the three DOTS lifts are absent, so the UI can say why. */
   dots_missing: string[]
   ratios: LiftRatio[]
+  /** The next DOTS marker and how to get there. Null without a DOTS score. */
+  milestone: Milestone | null
 }
 
 export interface BenchmarkReport {

@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import type { Profile } from '~/types/api'
 
 const theme = ref<'light' | 'dark' | 'system'>('system')
 const { plain, togglePlain, restorePlain } = useGlossary()
+
+// Same shared key as `useUnits`, so this costs no extra request.
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
 onMounted(() => {
   const stored = localStorage.getItem('hevy-coach-theme')
@@ -28,15 +32,18 @@ function cycleTheme() {
   applyTheme(theme.value === 'light' ? 'dark' : theme.value === 'dark' ? 'system' : 'light')
 }
 
-const links = [
+/** The Total page is only meaningful for a goal judged on a total, so it is
+ *  offered only then - a hypertrophy log has no main lifts to add up. */
+const links = computed(() => [
   { to: '/', label: 'Dashboard' },
   { to: '/next', label: 'Next session' },
+  ...(profile.value?.tracks_total ? [{ to: '/total', label: 'Total' }] : []),
   { to: '/workouts', label: 'Workouts' },
   { to: '/strength', label: 'Strength' },
   { to: '/exercises', label: 'Exercises' },
   { to: '/coach', label: 'Coach' },
   { to: '/settings', label: 'Settings' },
-]
+])
 </script>
 
 <template>

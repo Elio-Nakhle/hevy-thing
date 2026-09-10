@@ -29,12 +29,15 @@ upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
   built on other populations put the same lift a band or two higher.
 - **Findings** - rule-based insights: stalls, regressions, dormant lifts, low
   weekly volume, and lifts that lag their own variations by a full level.
-- **Your total** - on a strength or powerlifting goal, the strength page adds
-  the total of the lifts that goal is judged on, plus a DOTS score. It is a
+- **Your total** - on a strength or powerlifting goal, a **Total** page adds up
+  the lifts that goal is judged on, scores them with DOTS, and breaks down what
+  the next DOTS marker costs: the gap split across squat, bench and deadlift in
+  proportion to what each already contributes, snapped to 2.5 kg jumps. It is a
   *training* total, built from estimated 1RMs, so it reads higher than what you
   would hit on the platform - the page says so. DOTS is scored on squat, bench
   and deadlift only, whatever else the goal totals, because that is the total
-  the coefficients were fitted to.
+  the coefficients were fitted to. The page is offered only for a goal that has
+  a total; hypertrophy is judged on weekly volume instead.
 - **Session plans** - open any workout for what it did to each lift and what to
   load the next time that routine comes round. Prescriptions use double
   progression, with the load increment read from the jumps you actually make and

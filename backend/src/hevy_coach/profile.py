@@ -91,6 +91,9 @@ def describe(settings: Settings, measured_bodyweight: float | None = None) -> di
         "dumbbell_load": settings.dumbbell_load,
         "training_goal": settings.training_goal,
         "training_goal_summary": goal.summary,
+        # Drives whether the app offers the total page at all, so it travels
+        # with the profile rather than needing a second request to /api/goals.
+        "tracks_total": goal.tracks_total,
         "coach_model": settings.coach_model,
         "unset": list(unset),
         "needs_setup": needs_setup(settings, measured_bodyweight),

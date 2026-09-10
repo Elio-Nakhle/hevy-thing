@@ -10,7 +10,13 @@ from __future__ import annotations
 
 import pytest
 
-from hevy_coach.analytics.powerlifting import DOTS_LIFTS, dots, total_report
+from hevy_coach.analytics.powerlifting import (
+    DOTS_LIFTS,
+    TotalEntry,
+    dots,
+    next_milestone,
+    total_report,
+)
 from hevy_coach.config import Settings
 from hevy_coach.db import Database
 
@@ -150,3 +156,111 @@ def test_ratios_compare_each_lift_with_the_squat(
 
 def test_no_ratios_without_a_squat(empty_db: Database, settings: Settings) -> None:
     assert total_report(empty_db, _goal(settings, "powerlifting")).ratios == []
+
+
+# -- the next milestone -----------------------------------------------------
+
+
+def test_the_route_reaches_the_marker(db: Database, settings: Settings) -> None:
+    """The one thing a plan must not do is fall short of its own headline."""
+    milestone = total_report(db, _goal(settings, "powerlifting")).milestone
+
+    assert milestone is not None
+    assert milestone.reaches_dots is not None
+    assert milestone.reaches_dots >= milestone.dots
+
+
+def test_the_marker_is_a_number_lifters_use(db: Database, settings: Settings) -> None:
+    milestone = total_report(db, _goal(settings, "powerlifting")).milestone
+
+    assert milestone is not None
+    assert milestone.dots % 50 == 0
+
+
+def test_the_gap_is_split_across_the_competition_three(
+    db: Database, settings: Settings
+) -> None:
+    """Not the goal's four: adding to an overhead press moves a general-strength
+    total and does nothing to the DOTS marker being aimed at."""
+    milestone = total_report(db, _goal(settings, "strength")).milestone
+
+    assert milestone is not None
+    assert [lift.lift for lift in milestone.lifts] == list(DOTS_LIFTS)
+
+
+def test_each_lift_owes_its_share_of_the_total(db: Database, settings: Settings) -> None:
+    """Proportional to what it already contributes, which is the same as asking
+    every lift for the same percentage."""
+    report = total_report(db, _goal(settings, "powerlifting"))
+    milestone = report.milestone
+    assert milestone is not None
+
+    by_lift = {lift.lift: lift for lift in milestone.lifts}
+    strongest = max(report.entries, key=lambda entry: entry.e1rm_kg)
+    weakest = min(report.entries, key=lambda entry: entry.e1rm_kg)
+
+    assert by_lift[strongest.lift].add_kg > by_lift[weakest.lift].add_kg
+
+
+def test_targets_land_on_loadable_jumps(db: Database, settings: Settings) -> None:
+    milestone = total_report(db, _goal(settings, "powerlifting")).milestone
+
+    assert milestone is not None
+    for lift in milestone.lifts:
+        assert lift.add_kg % 2.5 == pytest.approx(0.0, abs=0.01)
+        assert lift.target_kg == pytest.approx(lift.e1rm_kg + lift.add_kg, abs=0.1)
+
+
+def test_a_marker_already_in_reach_is_reported_but_not_planned_for(
+    db: Database, settings: Settings
+) -> None:
+    """A couple of kilos split three ways is not a plan, so the route goes to
+    the marker above and the near one is called out instead."""
+    milestone = total_report(db, _goal(settings, "powerlifting")).milestone
+    assert milestone is not None
+
+    if milestone.near_dots is not None:
+        assert milestone.near_add_total_kg is not None
+        assert milestone.near_add_total_kg < 5.0
+        assert milestone.dots == milestone.near_dots + 50
+
+
+def test_no_milestone_without_a_dots_score(empty_db: Database, settings: Settings) -> None:
+    assert total_report(empty_db, _goal(settings, "powerlifting")).milestone is None
+
+
+def test_no_milestone_for_a_goal_with_no_total(db: Database, settings: Settings) -> None:
+    assert total_report(db, _goal(settings, "hypertrophy")).milestone is None
+
+
+@pytest.mark.parametrize(
+    ("squat", "bench", "deadlift"),
+    [(100.0, 70.0, 130.0), (200.0, 140.0, 250.0), (60.0, 40.0, 80.0), (250.0, 180.0, 300.0)],
+)
+def test_every_strength_level_gets_a_reachable_route(
+    squat: float, bench: float, deadlift: float
+) -> None:
+    """Across the range, the rounding must never leave the plan short."""
+    entries = [
+        TotalEntry(
+            lift=lift,
+            title=lift,
+            template_id=lift,
+            e1rm_kg=kg,
+            last_performed=None,
+            sessions=5,
+            share=0.0,
+        )
+        for lift, kg in zip(DOTS_LIFTS, (squat, bench, deadlift), strict=True)
+    ]
+    total = squat + bench + deadlift
+    current = dots(total, 90.0, "male")
+    assert current is not None
+
+    milestone = next_milestone(entries, total, current, 90.0, "male")
+
+    assert milestone is not None
+    assert milestone.reaches_dots is not None
+    assert milestone.reaches_dots >= milestone.dots
+    # And it does not overshoot by more than one jump per lift.
+    assert milestone.reaches_total_kg - milestone.total_kg < 3 * 2.5

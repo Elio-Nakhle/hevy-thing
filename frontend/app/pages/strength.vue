@@ -1,23 +1,13 @@
 <script setup lang="ts">
 /** Strength standards: every mappable lift against its bodyweight-adjusted bands. */
 import { computed } from 'vue'
-import type { BenchmarkReport, TotalReport } from '~/types/api'
+import type { BenchmarkReport, Profile } from '~/types/api'
 import { fullDate, titleCase } from '~/utils/format'
 
 const { unit, amount, weight } = useUnits()
 
 const { data: report, pending } = await useFetch<BenchmarkReport>('/api/benchmark', { query: { days: 365 } })
-const { data: total } = await useFetch<TotalReport>('/api/total', { query: { days: 365 } })
-
-/** Only shown for a goal that is judged on a total - not hypertrophy, whose
- *  main lifts are empty and whose total is therefore zero. */
-const showTotal = computed(() => Boolean(total.value?.tracks_total && total.value.total_kg > 0))
-
-/** True when the goal totals something other than the three DOTS is scored on,
- *  which is the case for general strength and its overhead press. */
-const totalIsWiderThanDots = computed(
-  () => total.value?.dots_total_kg != null && total.value.total_kg > total.value.dots_total_kg,
-)
+const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 
 const entries = computed(() => report.value?.entries ?? [])
 const overall = computed(() => report.value?.overall_level_score ?? null)
@@ -51,88 +41,10 @@ const overallPct = computed(() =>
       </p>
     </section>
 
-    <!-- First for a goal judged on a total: for a powerlifter this *is* the
-         headline, and the overall level is the general answer. -->
-    <section v-if="showTotal && total" class="card total-card">
-      <div class="card-head">
-        <h2 class="card-title"><Term id="total" capitalize /></h2>
-        <span class="secondary total-goal">{{ titleCase(total.goal) }} goal</span>
-      </div>
-
-      <div class="total-row">
-        <div>
-          <span class="total-value">{{ amount(total.total_kg, 0) }}</span>
-          <span class="total-unit secondary">{{ unit }}</span>
-          <p class="total-of muted">
-            {{ total.entries.length }} lifts:
-            {{ total.entries.map((e) => titleCase(e.lift)).join(' + ') }}
-          </p>
-        </div>
-        <div v-if="total.dots !== null">
-          <span class="total-value">{{ total.dots }}</span>
-          <span class="total-unit secondary"><Term id="dots" /></span>
-          <p class="total-of muted">
-            <template v-if="totalIsWiderThanDots">
-              From {{ amount(total.dots_total_kg, 0) }} {{ unit }} of squat, bench and
-              deadlift only - the total DOTS is built for.
-            </template>
-            <template v-else>Bodyweight-adjusted; ~400 is a strong raw lifter.</template>
-          </p>
-        </div>
-      </div>
-
-      <p class="total-caveat">
-        This is a <strong>training</strong> total, not a meet result. Every lift in it is an
-        <Term id="e1rm" /> off your working sets, which reads higher than a single on the
-        platform on the day - so treat it as "where my training is now".
-      </p>
-
-      <p v-if="total.dots_missing.length" class="total-caveat">
-        No DOTS score:
-        {{ total.dots_missing.map((lift) => titleCase(lift)).join(' and ') }}
-        {{ total.dots_missing.length === 1 ? 'is' : 'are' }} not in the log, and a partial
-        total would flatter.
-      </p>
-      <p v-else-if="total.bodyweight_clamped" class="total-caveat">
-        Your bodyweight sits outside the range the DOTS formula was fitted on, so it was
-        clamped to the edge of that range.
-      </p>
-
-      <p v-if="total.missing.length" class="total-caveat">
-        Missing from the total:
-        {{ total.missing.map((lift) => titleCase(lift)).join(', ') }} - never logged, so
-        {{ total.missing.length === 1 ? 'it counts' : 'they count' }} as nothing.
-      </p>
-
-      <table class="data-table total-table">
-        <thead>
-          <tr>
-            <th>Lift</th>
-            <th>Logged as</th>
-            <th><Term id="e1rm" capitalize /> ({{ unit }})</th>
-            <th>Share</th>
-            <th>Last done</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in total.entries" :key="entry.lift">
-            <td>{{ titleCase(entry.lift) }}</td>
-            <td class="muted">{{ entry.title }}</td>
-            <td><strong>{{ amount(entry.e1rm_kg) }}</strong></td>
-            <td>{{ entry.share.toFixed(0) }}%</td>
-            <td>{{ fullDate(entry.last_performed) }}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <ul v-if="total.ratios.length" class="ratios">
-        <li v-for="ratio in total.ratios" :key="ratio.lift">
-          {{ ratio.title }} is <strong>{{ ratio.ratio.toFixed(2) }}x</strong> your squat,
-          against {{ ratio.expected.toFixed(2) }}x for a typical raw lifter -
-          <span :class="`verdict-${ratio.verdict}`">{{ ratio.verdict }}</span>.
-        </li>
-      </ul>
-    </section>
+    <p v-if="profile?.tracks_total" class="elsewhere secondary">
+      Your training total and its DOTS score are on the
+      <NuxtLink to="/total">Total</NuxtLink> page.
+    </p>
 
     <section v-if="overall !== null" class="card hero-card">
       <span class="tile-label secondary">Overall <Term id="level" /></span>
@@ -285,71 +197,9 @@ const overallPct = computed(() =>
   font-size: 13px;
 }
 
-.total-card {
-  margin-bottom: 16px;
-  border-left: 3px solid var(--series-1);
-}
-
-.total-goal {
-  font-size: 12px;
-  text-transform: capitalize;
-}
-
-.total-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 32px;
-  margin: 6px 0 4px;
-}
-
-.total-value {
-  font-size: 38px;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.total-unit {
-  font-size: 14px;
-  margin-left: 6px;
-}
-
-.total-of {
-  margin: 4px 0 0;
-  font-size: 12px;
-  max-width: 40ch;
-}
-
-.total-caveat {
-  margin: 12px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  max-width: 74ch;
-}
-
-.total-table {
-  margin-top: 14px;
-}
-
-.ratios {
-  margin: 12px 0 0;
-  padding-left: 18px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.ratios li + li {
-  margin-top: 3px;
-}
-
-.verdict-lagging {
-  color: var(--serious);
-}
-
-.verdict-leading {
-  color: var(--success-text);
+.elsewhere {
+  margin: 0 0 16px;
+  font-size: 13px;
 }
 
 .hero-card {

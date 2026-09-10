@@ -78,6 +78,13 @@ def test_describe_carries_the_goal_in_words() -> None:
     assert "Squat, bench and deadlift" in described["training_goal_summary"]
 
 
+def test_describe_says_whether_the_goal_is_judged_on_a_total() -> None:
+    """The app only offers the total page for a goal that has one."""
+    assert profile.describe(_settings(training_goal="powerlifting"))["tracks_total"] is True
+    assert profile.describe(_settings(training_goal="strength"))["tracks_total"] is True
+    assert profile.describe(_settings(training_goal="hypertrophy"))["tracks_total"] is False
+
+
 # -- writing the dotenv file ------------------------------------------------
 
 
