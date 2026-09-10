@@ -22,6 +22,11 @@ actually contains:
 * **No routine id.** CSV exports drop it, so a routine is identified by its
   workout title. "Full A" run nine times is nine occurrences of one routine.
 
+Two entry points come out of this. :func:`workout_detail` reads one session
+that already happened; :func:`next_session` looks forward - it works out which
+routine is due, and hands back that routine's prescriptions with nothing else
+attached, which is all you want on a phone at the rack.
+
 The progression model is **double progression**, the scheme with the least
 ceremony and the most evidence behind it: hold the load until the top of a rep
 range is reached on every working set, then add the smallest useful increment
@@ -33,7 +38,7 @@ are layered on top for the cases where pushing is the wrong call.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from itertools import pairwise
 from statistics import median
 from typing import Any, Literal
@@ -860,4 +865,191 @@ def workout_detail(db: Database, settings: Settings, workout_id: str) -> Workout
         exercises=blocks,
         muscle_groups=_muscle_breakdown(db, workout_id),
         notes=_session_notes(blocks, routine),
+    )
+
+
+# -- what to do next --------------------------------------------------------
+
+#: Runs of a title before it counts as a routine rather than a one-off session.
+#: The bar is deliberately low - two is a rotation slot, one is a holiday hotel
+#: gym - but it has to exist, see :func:`_due_next`.
+MIN_RUNS_FOR_ROUTINE = 2
+
+#: How recently a routine must have been trained to count as part of the current
+#: programme. Same four weeks, for the same reason, as the goal checks in
+#: ``progression``: long enough to survive one missed session, short enough to
+#: describe what the lifter is doing now rather than what they used to do.
+ACTIVE_WINDOW_DAYS = 28
+
+#: Names listed before a prescription summary says "and N more".
+SUMMARY_NAMES = 2
+
+
+@dataclass
+class RoutineDue:
+    """A routine, and how long it has been waiting."""
+
+    title: str
+    #: Most recent run, which the prescriptions are computed from.
+    workout_id: str
+    last_performed: str
+    days_since: int
+    runs: int
+
+
+@dataclass
+class NextSessionExercise:
+    """One exercise's prescription, plus just enough of last time to trust it."""
+
+    template_id: str
+    title: str
+    muscle_group: str | None
+    equipment: str | None
+    order: int
+    last_top_weight_kg: float | None
+    #: Best set at that load. Kept for continuity with the workout pages.
+    last_top_reps: int | None
+    last_top_set_count: int
+    #: Every set at the top load, in the order performed. The prescription
+    #: progresses the *worst* of these, so showing only the best one made a
+    #: target of 11 look like a downgrade from a 12 that was really a 12 and a 10.
+    last_top_set_reps: list[int]
+    sessions: int
+    recommendation: Recommendation
+
+
+@dataclass
+class NextSession:
+    routine: RoutineDue
+    exercises: list[NextSessionExercise]
+    #: Every routine, most overdue first, so the view can switch between them.
+    alternatives: list[RoutineDue]
+    #: The prescriptions that change something, as one line each.
+    changes: list[str] = field(default_factory=list)
+    #: "Full B is up next - add weight on Squat and Bench Press."
+    summary: str = ""
+
+
+def routines_due(db: Database) -> list[RoutineDue]:
+    """Every routine in the log, longest-unused first."""
+    now = datetime.now(UTC)
+    due = [
+        RoutineDue(
+            title=title,
+            workout_id=entries[-1][0],
+            last_performed=entries[-1][1],
+            days_since=max(0, (now - datetime.fromisoformat(entries[-1][1])).days),
+            runs=len(entries),
+        )
+        for title, entries in _routine_runs(db).items()
+    ]
+    return sorted(due, key=lambda routine: routine.last_performed)
+
+
+def _due_next(ranked: list[RoutineDue]) -> RoutineDue:
+    """The routine most overdue *within the current programme*.
+
+    "Most overdue" on its own is wrong on a real log, and wrong in a way that
+    looks plausible until you check it. A Hevy log accumulates titles: sessions
+    Hevy auto-named "Afternoon workout", a week of hotel-gym improvising, a
+    routine dropped three months ago. Every one of those is more overdue than
+    anything you actually train, so the oldest entry is reliably the least
+    relevant one. On the log this was built against it chose a twice-run title
+    last trained 104 days ago, over the Full A / Full B pair the lifter was
+    plainly alternating that week.
+
+    So a candidate has to be both a routine (it repeats) and current (trained
+    inside :data:`ACTIVE_WINDOW_DAYS`). Failing that there is no rotation to
+    infer, and the most recently trained routine is the better guess: after a
+    layoff you resume where you left off, and with one routine you repeat it.
+    """
+    current = [
+        routine
+        for routine in ranked
+        if routine.runs >= MIN_RUNS_FOR_ROUTINE and routine.days_since <= ACTIVE_WINDOW_DAYS
+    ]
+    # `ranked` is oldest-first, so the most overdue current routine is first and
+    # the most recently trained of anything is last.
+    return current[0] if current else ranked[-1]
+
+
+def _name_list(names: list[str]) -> str:
+    """"Squat", "Squat and Bench", "Squat, Bench and 3 more"."""
+    if len(names) <= SUMMARY_NAMES:
+        return " and ".join(names)
+    return f"{', '.join(names[:SUMMARY_NAMES])} and {len(names) - SUMMARY_NAMES} more"
+
+
+def _summarise(title: str, exercises: list[NextSessionExercise]) -> str:
+    """One line for the top of a dashboard: what actually changes next time."""
+    by_action: dict[str, list[str]] = {}
+    for exercise in exercises:
+        by_action.setdefault(exercise.recommendation.action, []).append(exercise.title)
+
+    parts = []
+    if adds := by_action.get("add_load"):
+        parts.append(f"add weight on {_name_list(adds)}")
+    if reps := by_action.get("add_reps"):
+        parts.append(f"chase reps on {_name_list(reps)}")
+    if backs := by_action.get("deload"):
+        parts.append(f"back off on {_name_list(backs)}")
+    if not parts:
+        parts.append("same weights as last time")
+
+    label = title or "Your next session"
+    return f"{label} is up next - {', and '.join(parts)}."
+
+
+def next_session(
+    db: Database, settings: Settings, *, title: str | None = None
+) -> NextSession:
+    """The prescriptions for the routine that is due, or for a named one.
+
+    Raises ``LookupError`` when the log is empty or the title is unknown.
+    """
+    ranked = routines_due(db)
+    if not ranked:
+        raise LookupError("no workouts imported yet")
+
+    if title is None:
+        chosen = _due_next(ranked)
+    else:
+        found = next((routine for routine in ranked if routine.title == title), None)
+        if found is None:
+            raise LookupError(f"no routine titled {title!r}")
+        chosen = found
+
+    # The prescriptions already exist: a routine's next run is prescribed from
+    # its last one, which is exactly what workout_detail computes.
+    detail = workout_detail(db, settings, chosen.workout_id)
+    exercises = [
+        NextSessionExercise(
+            template_id=block.template_id,
+            title=block.title,
+            muscle_group=block.muscle_group,
+            equipment=block.equipment,
+            order=block.order,
+            last_top_weight_kg=block.top_weight_kg,
+            last_top_reps=block.top_reps,
+            last_top_set_count=sum(1 for s in block.sets if s.is_top),
+            last_top_set_reps=[
+                s.reps for s in block.sets if s.is_top and s.reps is not None
+            ],
+            sessions=block.sessions,
+            recommendation=block.recommendation,
+        )
+        for block in detail.exercises
+    ]
+
+    changed = {"add_load", "add_reps", "deload"}
+    return NextSession(
+        routine=chosen,
+        exercises=exercises,
+        alternatives=ranked,
+        changes=[
+            f"{exercise.title}: {exercise.recommendation.headline}"
+            for exercise in exercises
+            if exercise.recommendation.action in changed
+        ],
+        summary=_summarise(chosen.title, exercises),
     )

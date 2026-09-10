@@ -245,6 +245,21 @@ def get_workout(db: DbDep, settings: SettingsDep, workout_id: str) -> dict[str, 
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/api/next-session")
+def get_next_session(
+    db: DbDep,
+    settings: SettingsDep,
+    routine: Annotated[
+        str | None, Query(description="Prescribe this routine instead of the one due")
+    ] = None,
+) -> dict[str, Any]:
+    """Prescriptions for the routine that is due - the phone-at-the-rack view."""
+    try:
+        return asdict(session.next_session(db, settings, title=routine))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 # -- strength standards -----------------------------------------------------
 
 

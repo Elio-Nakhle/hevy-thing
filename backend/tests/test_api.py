@@ -1,15 +1,16 @@
 """Tests for the HTTP layer.
 
-Only import and the profile are covered here. The analytics routes are thin
-``asdict`` wrappers over functions the other modules test directly, whereas
-these two are where the API adds behaviour of its own: accepting an upload and
-choosing between it and the workouts folder, and writing the lifter profile back
-to a dotenv file.
+Import and the profile get most of the attention: they are where the API adds
+behaviour of its own - accepting an upload and choosing between it and the
+workouts folder, and writing the lifter profile back to a dotenv file. The rest
+of the routes are thin ``asdict`` wrappers over functions the other modules test
+directly, so they are only checked for shape and for their error codes.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -222,3 +223,69 @@ def test_the_profile_cannot_rewrite_unrelated_settings(
     response = client.put("/api/profile", json={"database_path": "/tmp/elsewhere.db"})
 
     assert response.status_code == 422
+
+
+# -- the next session --------------------------------------------------------
+
+
+def test_next_session_needs_a_log(client: TestClient) -> None:
+    response = client.post("/api/import")  # nothing to import
+    assert response.status_code == 404
+
+    response = client.get("/api/next-session")
+
+    assert response.status_code == 404
+    assert "no workouts" in response.json()["detail"]
+
+
+def test_next_session_prescribes_the_overdue_routine(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    body = client.get("/api/next-session").json()
+
+    assert body["routine"]["title"] == "Push"
+    assert body["exercises"]
+    assert body["exercises"][0]["recommendation"]["action"]
+    assert body["summary"].startswith("Push is up next -")
+
+
+def test_next_session_accepts_a_named_routine(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    body = client.get("/api/next-session", params={"routine": "Pull"}).json()
+
+    assert body["routine"]["title"] == "Pull"
+
+
+def test_an_unknown_routine_is_a_404(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    response = client.get("/api/next-session", params={"routine": "Legs"})
+
+    assert response.status_code == 404
+
+
+def _history() -> tuple[str, ...]:
+    """Push/Pull alternating over six weeks, Pull most recently - so Push is due."""
+    plan = (("Push", "Bench Press (Barbell)", 60.0), ("Pull", "Squat (Barbell)", 90.0))
+    rows: list[str] = []
+    for week in range(6):
+        for offset, (title, exercise, base) in enumerate(plan):
+            # Relative to today, so these stay inside the headline's 90-day
+            # window however long the suite lives. Pull sits three days after
+            # that week's Push, which makes Push the routine left waiting.
+            start = datetime.now(UTC) - timedelta(days=(5 - week) * 7 + 3 - offset * 3)
+            end = start + timedelta(hours=1)
+            rows.extend(
+                export_row(
+                    title=title,
+                    start=start.strftime("%Y-%m-%d %H:%M:%S"),
+                    end=end.strftime("%Y-%m-%d %H:%M:%S"),
+                    exercise=exercise,
+                    set_index=index,
+                    weight=f"{base + week * 2.5:g}",
+                    reps="8",
+                )
+                for index in range(3)
+            )
+    return tuple(rows)

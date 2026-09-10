@@ -83,6 +83,41 @@ export interface ImportResult {
   summary: string
 }
 
+/** A routine and how long it has been waiting. */
+export interface RoutineDue {
+  title: string
+  /** Most recent run, which the prescriptions are computed from. */
+  workout_id: string
+  last_performed: string
+  days_since: number
+  runs: number
+}
+
+export interface NextSessionExercise {
+  template_id: string
+  title: string
+  muscle_group: string | null
+  equipment: string | null
+  order: number
+  last_top_weight_kg: number | null
+  /** Best set at that load. */
+  last_top_reps: number | null
+  last_top_set_count: number
+  /** Every set at the top load. The prescription progresses the worst of them. */
+  last_top_set_reps: number[]
+  sessions: number
+  recommendation: Recommendation
+}
+
+export interface NextSession {
+  routine: RoutineDue
+  exercises: NextSessionExercise[]
+  /** Every routine, most overdue first, so the view can switch. */
+  alternatives: RoutineDue[]
+  changes: string[]
+  summary: string
+}
+
 export interface Overview {
   workouts: number
   first_workout: string | null

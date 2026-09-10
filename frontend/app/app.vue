@@ -26,6 +26,7 @@ function cycleTheme() {
 
 const links = [
   { to: '/', label: 'Dashboard' },
+  { to: '/next', label: 'Next session' },
   { to: '/workouts', label: 'Workouts' },
   { to: '/strength', label: 'Strength' },
   { to: '/exercises', label: 'Exercises' },
@@ -44,7 +45,7 @@ const links = [
             {{ link.label }}
           </NuxtLink>
         </nav>
-        <button class="btn theme-btn" type="button" @click="cycleTheme">
+        <button class="btn toggle" type="button" @click="cycleTheme">
           {{ theme === 'system' ? 'Auto' : theme === 'dark' ? 'Dark' : 'Light' }}
         </button>
       </div>
@@ -105,7 +106,7 @@ nav {
   font-weight: 500;
 }
 
-.theme-btn {
+.toggle {
   flex: none;
 }
 

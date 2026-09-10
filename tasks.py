@@ -33,11 +33,21 @@ def backend(c: Context, host: str = "127.0.0.1", port: int = 8000, reload: bool 
         )
 
 
-@task(help={"port": "Port for the dev server", "api": "Base URL of the backend to proxy to"})
-def frontend(c: Context, port: int = 3000, api: str = "http://127.0.0.1:8000") -> None:
+@task(
+    help={
+        "port": "Port for the dev server",
+        "api": "Base URL of the backend to proxy to",
+        "lan": "Bind to all interfaces so a phone on the same network can reach it",
+    }
+)
+def frontend(c: Context, port: int = 3000, api: str = "http://127.0.0.1:8000", lan: bool = False) -> None:
     """Run the Nuxt dev server."""
     with c.cd(FRONTEND):
-        c.run(f"npm run dev -- --port {port}", pty=True, env={"NUXT_PUBLIC_API_BASE": api})
+        c.run(
+            f"npm run dev -- --port {port}{' --host' if lan else ''}",
+            pty=True,
+            env={"NUXT_PUBLIC_API_BASE": api},
+        )
 
 
 @task(
@@ -46,16 +56,27 @@ def frontend(c: Context, port: int = 3000, api: str = "http://127.0.0.1:8000") -
         "host": "Bind address for the API",
         "api-port": "Port for the API",
         "web-port": "Port for the Nuxt dev server",
+        "lan": "Expose the UI to your network, so the rack view works on a phone",
     },
 )
-def dev(c: Context, host: str = "127.0.0.1", api_port: int = 8000, web_port: int = 3000) -> None:
+def dev(
+    c: Context,
+    host: str = "127.0.0.1",
+    api_port: int = 8000,
+    web_port: int = 3000,
+    lan: bool = False,
+) -> None:
     """Run backend and frontend together; Ctrl-C stops both."""
     api = f"http://{host}:{api_port}"
+    # Only the UI is exposed. The browser's requests to /api are proxied by the
+    # Nuxt server, which reaches the backend over loopback - so the API needs no
+    # network binding of its own and gets none.
+    web_host = " --host" if lan else ""
     # One shell, one process group: `kill 0` on exit takes both servers down.
     c.run(
         "trap 'kill 0' EXIT INT TERM; "
         f"(cd {BACKEND} && uv run hevy-coach serve --host {host} --port {api_port} --reload) & "
-        f"(cd {FRONTEND} && NUXT_PUBLIC_API_BASE={api} npm run dev -- --port {web_port}) & "
+        f"(cd {FRONTEND} && NUXT_PUBLIC_API_BASE={api} npm run dev -- --port {web_port}{web_host}) & "
         "wait",
         pty=True,
     )

@@ -34,6 +34,11 @@ upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
   progression, with the load increment read from the jumps you actually make and
   deload/hold branches for lifts that have stopped responding. See
   [Next-session prescriptions](#next-session-prescriptions).
+- **Next session, on your phone** - `/next` is a one-column read-only view of
+  the prescriptions for whichever routine is due, sized for reading at the rack.
+  It works out what is due from what you actually train: a routine has to repeat
+  and to have been trained in the last four weeks, so a dropped programme or a
+  week of hotel-gym improvising cannot sit at the top of the list forever.
 - **Coach** - Claude with read-only tools over the log, so answers come from
   your actual numbers.
 
@@ -110,7 +115,13 @@ bodyweight is required - it is the one answer that cannot be guessed.
 inv hevy-thing              # API on :8000 and UI on :3000; Ctrl-C stops both
 inv hevy-thing.backend      # just the API
 inv hevy-thing.frontend     # just the UI
+inv hevy-thing --lan        # also reachable from your phone, for /next
 ```
+
+`--lan` binds the UI to every interface so a phone on the same network can open
+it - the point of the `/next` view. Only the UI is exposed; the browser's `/api`
+requests are proxied by the Nuxt server, which reaches the backend over
+loopback, so the API stays bound to localhost either way.
 
 Ports are flags: `--api-port` / `--web-port` on the combined task, `--port` on
 either single one. The combined task also points the frontend's proxy at
