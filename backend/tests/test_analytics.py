@@ -242,6 +242,141 @@ class TestBenchmark:
         assert {"bench-press", "squat", "deadlift", "bent-over-row"} <= mapped
         assert report.overall_level_score is not None
 
+    def test_one_row_per_standard_even_with_several_logged_variants(
+        self, tmp_path: Path, settings: Settings
+    ) -> None:
+        """Regression: two cable-row variants meant two levels for one standard.
+
+        Both grips score against ``seated-cable-row``. Emitting a row each put
+        two contradictory levels in the report and let the weaker variant drag
+        the overall mean down, so only the strongest survives - and it names
+        the one it shadowed.
+        """
+        database = Database(tmp_path / "variants.db")
+        database.upsert_workouts(
+            [
+                HevyWorkout(
+                    id="w1",
+                    title="Pull",
+                    start_time=datetime.now(UTC) - timedelta(days=2),
+                    exercises=[
+                        HevyExercise(
+                            title="Seated Cable Row - V Grip (Cable)",
+                            exercise_template_id="row-v",
+                            sets=[HevySet(weight_kg=80.0, reps=5)],
+                        ),
+                        HevyExercise(
+                            title="Seated Cable Row - Bar Grip",
+                            exercise_template_id="row-bar",
+                            sets=[HevySet(weight_kg=40.0, reps=5)],
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        report = benchmark(database, settings, days=None)
+        rows = [entry for entry in report.entries if entry.lift == "seated-cable-row"]
+
+        assert len(rows) == 1
+        assert rows[0].title == "Seated Cable Row - V Grip (Cable)"
+        assert rows[0].also_logged == ["Seated Cable Row - Bar Grip"]
+
+    def test_a_defaulted_bodyweight_is_flagged_not_presented_as_the_lifters(
+        self, tmp_path: Path
+    ) -> None:
+        """Every band is indexed on bodyweight, so a guessed one has to say so."""
+        defaulted = Settings(
+            _env_file=None, database_path=tmp_path / "d.db", workouts_dir=tmp_path / "w"
+        )
+        database = Database(defaulted.database_path)
+        database.upsert_workouts(build_history())
+
+        report = benchmark(database, defaulted, days=None)
+
+        assert report.bodyweight_source == "default"
+        assert any("placeholder bodyweight" in caveat for caveat in report.caveats)
+
+    def test_a_configured_bodyweight_carries_no_caveat(
+        self, db: Database, settings: Settings
+    ) -> None:
+        report = benchmark(db, settings, days=None)
+        assert report.bodyweight_source == "configured"
+        assert report.caveats == []
+
+    def test_a_combined_dumbbell_log_is_scored_per_dumbbell(
+        self, tmp_path: Path, settings: Settings
+    ) -> None:
+        """Regression: a combined-weight dumbbell bench read elite next to a
+        beginner barbell bench, because the published table is per dumbbell."""
+        database = Database(tmp_path / "db.db")
+        database.upsert_workouts(
+            [
+                HevyWorkout(
+                    id="w1",
+                    title="Push",
+                    start_time=datetime.now(UTC) - timedelta(days=1),
+                    exercises=[
+                        HevyExercise(
+                            title="Bench Press (Dumbbell)",
+                            exercise_template_id="db-bench",
+                            sets=[HevySet(weight_kg=50.0, reps=5)],
+                        )
+                    ],
+                )
+            ]
+        )
+
+        def bench(config: Settings) -> dict[str, object]:
+            entry = next(
+                e
+                for e in benchmark(database, config, days=None).entries
+                if e.lift == "dumbbell-bench-press"
+            )
+            return entry.score
+
+        as_logged = bench(settings)
+        halved = bench(settings.model_copy(update={"dumbbell_load": "combined"}))
+
+        assert halved["e1rm_kg"] == pytest.approx(as_logged["e1rm_kg"] / 2, abs=0.1)
+        assert halved["level_score"] < as_logged["level_score"]
+        assert as_logged["notes"] == []
+        assert any("Halved to one dumbbell" in note for note in halved["notes"])
+
+    def test_a_single_implement_dumbbell_lift_is_never_halved(
+        self, tmp_path: Path, settings: Settings
+    ) -> None:
+        """A one-arm row holds one dumbbell, so a combined log cannot apply."""
+        database = Database(tmp_path / "db2.db")
+        database.upsert_workouts(
+            [
+                HevyWorkout(
+                    id="w1",
+                    title="Pull",
+                    start_time=datetime.now(UTC) - timedelta(days=1),
+                    exercises=[
+                        HevyExercise(
+                            title="Dumbbell Row",
+                            exercise_template_id="db-row",
+                            sets=[HevySet(weight_kg=30.0, reps=5)],
+                        )
+                    ],
+                )
+            ]
+        )
+
+        combined = settings.model_copy(update={"dumbbell_load": "combined"})
+        rows = [
+            (e.score["e1rm_kg"], e.score["notes"])
+            for config in (settings, combined)
+            for e in benchmark(database, config, days=None).entries
+            if e.lift == "dumbbell-row"
+        ]
+
+        assert len(rows) == 2
+        assert rows[0][0] == rows[1][0]
+        assert rows[0][1] == rows[1][1] == []
+
     def test_scores_are_ordered_strongest_first(self, db: Database, settings: Settings) -> None:
         report = benchmark(db, settings, days=None)
         scores = [entry.score["level_score"] for entry in report.entries]

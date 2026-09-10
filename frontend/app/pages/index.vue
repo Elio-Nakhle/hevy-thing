@@ -43,8 +43,13 @@ async function runImport() {
     importMessage.value = result.summary
     await refreshNuxtData()
   } catch (error: unknown) {
-    const detail = (error as { data?: { detail?: string } })?.data?.detail
-    importMessage.value = detail || 'Import failed.'
+    const failure = error as { data?: { detail?: string }; statusCode?: number }
+    // A 502 is the dev proxy telling us nothing is listening on the API port.
+    importMessage.value =
+      failure?.data?.detail
+      ?? (failure?.statusCode === 502
+        ? 'Cannot reach the API - start it with `uv run hevy-coach serve`.'
+        : 'Import failed.')
   } finally {
     importing.value = false
   }
@@ -85,10 +90,10 @@ const severityColor: Record<string, string> = {
         <button
           class="btn btn-primary"
           type="button"
-          :disabled="importing || !health?.available_export"
+          :disabled="importing"
           :title="health?.available_export
             ? `Import ${health.available_export}`
-            : 'No CSV export found in the workouts folder'"
+            : 'Import the newest CSV export in the workouts folder'"
           @click="runImport"
         >
           {{ importing ? 'Importing...' : 'Import export' }}

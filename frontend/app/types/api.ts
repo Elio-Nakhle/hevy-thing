@@ -159,6 +159,9 @@ export interface BenchmarkEntry {
   last_performed: string | null
   sessions: number
   score: LiftScore
+  /** Other logged exercises scoring against the same standard, all weaker.
+   *  Optional: an older API build does not send it. */
+  also_logged?: string[]
 }
 
 export interface UnmappedExercise {
@@ -173,9 +176,121 @@ export interface BenchmarkReport {
   sex: string
   bodyweight_kg: number
   age: number | null
-  bodyweight_source: 'measured' | 'configured'
+  bodyweight_source: 'measured' | 'configured' | 'default'
   entries: BenchmarkEntry[]
   unmapped: UnmappedExercise[]
   overall_level_score: number | null
   overall_level: string | null
+  /** Reasons to distrust the levels, worst first. Empty when the inputs are real.
+   *  Optional: an older API build does not send it. */
+  caveats?: string[]
+}
+
+/** What the progression model decided to do with an exercise next time. */
+export type SessionAction =
+  | 'add_load'
+  | 'add_reps'
+  | 'hold'
+  | 'deload'
+  | 'establish'
+  | 'no_basis'
+
+export interface PerformedSet {
+  set_index: number
+  set_type: string
+  weight_kg: number | null
+  reps: number | null
+  rpe: number | null
+  e1rm_kg: number | null
+  volume_kg: number
+  /** Set at the exercise's heaviest load. Lighter sets are ramp-up. */
+  is_top: boolean
+}
+
+export interface Recommendation {
+  action: SessionAction
+  /** Prose already formatted in the configured unit; prefer the numeric fields. */
+  headline: string
+  detail: string
+  target_sets: number | null
+  target_reps: number | null
+  target_weight_kg: number | null
+  /** [low, high] of the rep range the prescription progresses through. */
+  rep_range: [number, number] | null
+  load_step_kg: number | null
+}
+
+export interface ExercisePrevious {
+  workout_id: string
+  date: string
+  top_weight_kg: number | null
+  top_reps: number | null
+  top_set_count: number
+  volume_kg: number
+  best_e1rm_kg: number | null
+}
+
+export interface ExerciseBlock {
+  template_id: string
+  title: string
+  muscle_group: string | null
+  equipment: string | null
+  order: number
+  sets: PerformedSet[]
+  working_sets: number
+  volume_kg: number
+  top_weight_kg: number | null
+  top_reps: number | null
+  best_e1rm_kg: number | null
+  sessions: number
+  previous: ExercisePrevious | null
+  e1rm_delta_kg: number | null
+  volume_delta_pct: number | null
+  is_pr: boolean
+  recommendation: Recommendation
+}
+
+export interface RoutineContext {
+  title: string
+  runs: number
+  run_index: number
+  previous_id: string | null
+  previous_date: string | null
+  previous_volume_kg: number | null
+  volume_delta_pct: number | null
+  median_volume_kg: number | null
+}
+
+export interface WorkoutSummary {
+  id: string
+  title: string
+  start_time: string
+  end_time: string | null
+  duration_minutes: number | null
+  exercises: number
+  sets: number
+  volume_kg: number
+  routine_runs: number
+  routine_index: number
+}
+
+export interface SessionMuscleVolume {
+  muscle_group: string
+  sets: number
+  volume_kg: number
+}
+
+export interface WorkoutDetail {
+  id: string
+  title: string
+  start_time: string
+  end_time: string | null
+  duration_minutes: number | null
+  sets: number
+  volume_kg: number
+  total_reps: number
+  routine: RoutineContext
+  exercises: ExerciseBlock[]
+  muscle_groups: SessionMuscleVolume[]
+  notes: string[]
 }

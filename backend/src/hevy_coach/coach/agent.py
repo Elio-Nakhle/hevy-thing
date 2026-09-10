@@ -16,7 +16,7 @@ from typing import Any
 import anthropic
 from anthropic import beta_tool
 
-from hevy_coach.analytics import metrics, progression
+from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
 from hevy_coach.analytics.standards import available_lifts, bands_for
 from hevy_coach.coach.prompts import SYSTEM
@@ -103,6 +103,14 @@ def build_tools(db: Database, settings: Settings) -> list[Any]:
         Returns a level (beginner..elite), a continuous 0-4 level score, the five
         thresholds in kg, and how far the lift is from the next level.
 
+        The level names are percentiles of lifts logged on strengthlevel.com -
+        beginner is the 5th, novice the 20th, intermediate the 50th, advanced the
+        80th, elite the 95th - so they rank the user against people who track
+        their training, not the general population. Say so rather than reading
+        the names as training age, and read `caveats` before trusting any level:
+        it lists reasons the inputs are unreliable, such as a placeholder
+        bodyweight.
+
         Args:
             days: Use each exercise's best e1RM within the last N days.
         """
@@ -160,9 +168,41 @@ def build_tools(db: Database, settings: Settings) -> list[Any]:
         records = metrics.personal_records(db, days=days, limit=limit)
         return _json([asdict(r) for r in records])
 
+    @beta_tool
+    def list_workouts(limit: int = 20) -> str:
+        """Recent sessions, newest first, each with its position in its routine.
+
+        Use this to find the workout_id for get_workout_plan.
+
+        Args:
+            limit: Maximum sessions to return.
+        """
+        return _json([asdict(w) for w in session.list_workouts(db, limit=limit)])
+
+    @beta_tool
+    def get_workout_plan(workout_id: str) -> str:
+        """One session's sets, its comparison to the previous time each exercise
+        was trained, and a next-session prescription per exercise.
+
+        The prescription is double progression: hold the load until every working
+        set reaches the top of its rep range, then add the smallest increment the
+        lifter's own history shows they use. Deload and hold branches override it
+        on a stalled or regressing lift. Ramp-up sets are excluded from the
+        decision - only sets at the exercise's top load count.
+
+        Args:
+            workout_id: Id from list_workouts.
+        """
+        try:
+            return _json(asdict(session.workout_detail(db, settings, workout_id)))
+        except LookupError as exc:
+            return _json({"error": str(exc)})
+
     return [
         get_overview,
         get_insights,
+        list_workouts,
+        get_workout_plan,
         list_exercises,
         get_exercise_history,
         get_exercise_trends,

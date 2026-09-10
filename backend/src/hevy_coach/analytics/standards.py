@@ -22,10 +22,50 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Literal
 
-from hevy_coach.config import DATA_DIR
+from hevy_coach.config import DATA_DIR, DumbbellLoad
 
 LEVELS = ("beginner", "novice", "intermediate", "advanced", "elite")
 LEVEL_INDEX = {name: i for i, name in enumerate(LEVELS)}
+
+#: What the five level names mean at the source: the percentile of logged lifts
+#: each one sits at ("beginner - stronger than 5% of lifters", and so on up).
+#:
+#: Worth keeping in view when reading a level, because the names oversell the
+#: percentiles. The population is people who log lifts in a strength app, not
+#: the general public, so the bottom band is *not* an untrained lifter - it is
+#: the 5th percentile of an already self-selected group. A "beginner" bench of
+#: 56 kg at 80 kg bodyweight is the bar to clear the weakest 5% of app users,
+#: which is why standards built on other populations put the same lift a band
+#: or two higher.
+LEVEL_PERCENTILES = (5.0, 20.0, 50.0, 80.0, 95.0)
+
+#: Lifts the source publishes as the weight of ONE dumbbell ("Dumbbell weights
+#: are for one dumbbell"), for movements held with a pair - one in each hand.
+#:
+#: Hevy asks for the same thing, but a log that records the pair's combined
+#: weight instead scores at double, which is enough to read "elite" on a
+#: dumbbell bench sitting next to a "beginner" barbell bench.
+#: ``Settings.dumbbell_load`` says which convention a log follows.
+#:
+#: Single-implement lifts are deliberately absent: a one-arm dumbbell row and a
+#: goblet squat hold one weight, so there is no pair to halve. So is the farmers
+#: walk - it is usually loaded with a trap bar or handles rather than dumbbells,
+#: and the published basis was not confirmed.
+PAIRED_DUMBBELL_LIFTS = frozenset(
+    {
+        "dumbbell-bench-press",
+        "dumbbell-calf-raise",
+        "dumbbell-curl",
+        "dumbbell-fly",
+        "dumbbell-lateral-raise",
+        "dumbbell-lunge",
+        "dumbbell-reverse-fly",
+        "dumbbell-shoulder-press",
+        "dumbbell-shrug",
+        "hammer-curl",
+        "incline-curl",
+    }
+)
 
 Sex = Literal["male", "female"]
 
@@ -58,7 +98,9 @@ class LiftScore:
     #: Position on a 0-4 scale: 0.0 = beginner, 2.0 = intermediate, 4.0 = elite.
     #: Below beginner is negative; above elite exceeds 4.
     level_score: float
-    #: 0-100 rescaling of level_score, clamped, for progress bars.
+    #: Percentile of logged lifts this load sits at, read off the source's own
+    #: definition of the bands. Held flat outside beginner..elite, where the
+    #: published tables stop resolving.
     percentile_estimate: float
     thresholds: dict[str, float]
     next_level: str | None
@@ -119,6 +161,18 @@ def metric_for(lift: str) -> str | None:
 def available_lifts() -> dict[str, str]:
     """Lift id -> display name for everything in the dataset."""
     return {lift: entry["name"] for lift, entry in load_dataset()["lifts"].items()}
+
+
+def per_dumbbell_load(lift: str, logged_kg: float, *, convention: DumbbellLoad) -> float:
+    """Restate a logged load as the one-dumbbell figure the standards are in.
+
+    A no-op unless the log records combined pair weight and the lift is held
+    with a pair. e1RM formulas are linear in load, so halving the estimate is
+    the same as halving every set that fed it.
+    """
+    if convention == "combined" and lift in PAIRED_DUMBBELL_LIFTS:
+        return logged_kg / 2.0
+    return logged_kg
 
 
 def _interpolate(xs: list[float], ys: list[float], x: float) -> float:
@@ -201,6 +255,18 @@ def _level_score(value: float, thresholds: list[float]) -> float:
     return 4.0 + ((value - thresholds[-1]) / span if span > 0 else 0.0)
 
 
+def _percentile(score: float) -> float:
+    """Turn a 0-4 band position into the percentile the source itself publishes.
+
+    The bands are not evenly spaced in percentile terms - 0 to 1 spans 15
+    percentiles, 1 to 2 spans 30 - so rescaling the band index (``score / 4``)
+    understates the middle of the distribution and overstates the top, which
+    reported elite as the 100th percentile. Held flat past either end, because
+    the tables stop resolving there.
+    """
+    return round(_interpolate([0.0, 1.0, 2.0, 3.0, 4.0], list(LEVEL_PERCENTILES), score), 1)
+
+
 def score_lift(
     lift: str,
     e1rm_kg: float,
@@ -248,7 +314,7 @@ def score_lift(
         bodyweight_kg=bodyweight_kg,
         level=level,
         level_score=round(score, 2),
-        percentile_estimate=round(max(0.0, min(100.0, (score / 4.0) * 100.0)), 1),
+        percentile_estimate=_percentile(score),
         thresholds=bands.thresholds,
         next_level=next_level,
         kg_to_next_level=kg_to_next,

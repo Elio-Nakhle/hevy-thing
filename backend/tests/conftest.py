@@ -17,7 +17,11 @@ from hevy_coach.demo import build_history, build_templates
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
+    # ``_env_file=None`` keeps the developer's own .env out of the fixture. It
+    # would otherwise supply a real bodyweight and dumbbell convention, and the
+    # tests would pass or fail depending on whose machine they ran on.
     return Settings(
+        _env_file=None,
         database_path=tmp_path / "test.db",
         sex="male",
         bodyweight_kg=80.0,

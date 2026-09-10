@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from hevy_coach.analytics import e1rm, metrics
 from hevy_coach.analytics.standards import (
     LEVELS,
+    PAIRED_DUMBBELL_LIFTS,
     LiftScore,
     StandardsNotAvailable,
     metric_for,
+    per_dumbbell_load,
     resolve_lift,
     score_lift,
 )
@@ -26,6 +28,9 @@ class BenchmarkEntry:
     last_performed: str | None
     sessions: int
     score: dict[str, Any]
+    #: Other logged exercises that map to the same standard and scored lower.
+    #: Kept visible so a shadowed variant is explained rather than just missing.
+    also_logged: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -39,6 +44,9 @@ class BenchmarkReport:
     #: Mean level score across benchmarked lifts - a single "how strong am I" number.
     overall_level_score: float | None
     overall_level: str | None
+    #: Reasons to distrust the levels below, worst first. Empty when the inputs
+    #: are all real.
+    caveats: list[str] = field(default_factory=list)
 
 
 def _best_e1rm(
@@ -77,9 +85,28 @@ def benchmark(
     """Score every mappable exercise, using each one's best e1RM in the window."""
     measured = db.latest_bodyweight()
     bodyweight = measured or settings.bodyweight_kg
-    source = "measured" if measured else "configured"
+    if measured:
+        source = "measured"
+    elif settings.bodyweight_is_default:
+        source = "default"
+    else:
+        source = "configured"
 
-    entries: list[BenchmarkEntry] = []
+    caveats: list[str] = []
+    if source == "default":
+        caveats.append(
+            f"Every level below was scored at the placeholder bodyweight of "
+            f"{bodyweight:g} kg - no body measurement is logged and BODYWEIGHT_KG is "
+            f"unset. The standards are indexed on bodyweight, so this is the single "
+            f"biggest thing skewing the classifications: set BODYWEIGHT_KG in .env "
+            f"(or log a weight in Hevy) and re-read the report."
+        )
+
+    # One standard, potentially several logged exercises: a V-grip and a bar-grip
+    # cable row both score against `seated-cable-row`. Emitting a row each gave
+    # one lift two contradictory levels and skewed the overall mean toward
+    # whichever variant was logged more often, so only the strongest is kept.
+    strongest: dict[str, BenchmarkEntry] = {}
     unmapped: list[dict[str, Any]] = []
 
     for summary in metrics.exercise_summaries(db, days=days):
@@ -103,6 +130,7 @@ def benchmark(
         best = _best_e1rm(db, summary, lift, bodyweight=bodyweight, days=days)
         if best is None:
             continue
+        best = per_dumbbell_load(lift, best, convention=settings.dumbbell_load)
 
         try:
             score: LiftScore = score_lift(
@@ -123,18 +151,31 @@ def benchmark(
             )
             continue
 
-        entries.append(
-            BenchmarkEntry(
-                template_id=summary.template_id,
-                title=summary.title,
-                lift=lift,
-                last_performed=summary.last_performed,
-                sessions=summary.sessions,
-                score=asdict(score),
+        scored = asdict(score)
+        if settings.dumbbell_load == "combined" and lift in PAIRED_DUMBBELL_LIFTS:
+            scored["notes"].append(
+                "Halved to one dumbbell, which is what the standard is published in, "
+                "because DUMBBELL_LOAD=combined says this log records the pair's total."
             )
-        )
 
-    entries.sort(key=lambda e: e.score["level_score"], reverse=True)
+        entry = BenchmarkEntry(
+            template_id=summary.template_id,
+            title=summary.title,
+            lift=lift,
+            last_performed=summary.last_performed,
+            sessions=summary.sessions,
+            score=scored,
+        )
+        incumbent = strongest.get(lift)
+        if incumbent is None:
+            strongest[lift] = entry
+        elif entry.score["level_score"] > incumbent.score["level_score"]:
+            entry.also_logged = [*incumbent.also_logged, incumbent.title]
+            strongest[lift] = entry
+        else:
+            incumbent.also_logged.append(entry.title)
+
+    entries = sorted(strongest.values(), key=lambda e: e.score["level_score"], reverse=True)
     unmapped.sort(key=lambda item: item.get("sessions", 0), reverse=True)
 
     overall = (
@@ -153,4 +194,5 @@ def benchmark(
         unmapped=unmapped[:25],
         overall_level_score=round(overall, 2) if overall is not None else None,
         overall_level=overall_level,
+        caveats=caveats,
     )

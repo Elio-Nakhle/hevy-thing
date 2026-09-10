@@ -7,7 +7,9 @@ from typing import ClassVar
 import pytest
 
 from hevy_coach.analytics.standards import (
+    LEVEL_PERCENTILES,
     LEVELS,
+    PAIRED_DUMBBELL_LIFTS,
     StandardsNotAvailable,
     _interpolate,
     _level_score,
@@ -15,6 +17,7 @@ from hevy_coach.analytics.standards import (
     bands_for,
     load_dataset,
     metric_for,
+    per_dumbbell_load,
     resolve_lift,
     score_lift,
 )
@@ -86,6 +89,61 @@ class TestLevelScore:
         assert _level_score(175.0, self.THRESHOLDS) > 4
 
 
+class TestLiftResolution:
+    def test_barbell_deadlift_variants_map_to_the_deadlift_standard(self) -> None:
+        for title in ("Deadlift (Barbell)", "Deadlift", "Conventional Deadlift"):
+            assert resolve_lift(title) == "deadlift", title
+
+    def test_dumbbell_deadlift_is_not_scored_as_a_barbell_deadlift(self) -> None:
+        """Regression: ``^deadlift`` swallowed the dumbbell variant.
+
+        A dumbbell deadlift is a different movement with a much lower ceiling,
+        and the dataset has no table for it. Scoring it against the barbell
+        table gave one lift two contradictory levels in the same report.
+        """
+        assert resolve_lift("Deadlift (Dumbbell)") is None
+
+    def test_the_specific_deadlift_variants_still_win(self) -> None:
+        assert resolve_lift("Sumo Deadlift (Barbell)") == "sumo-deadlift"
+        assert resolve_lift("Romanian Deadlift (Barbell)") == "romanian-deadlift"
+
+
+class TestDumbbellLoad:
+    def test_per_dumbbell_logs_are_left_alone(self) -> None:
+        assert per_dumbbell_load(
+            "dumbbell-bench-press", 40.0, convention="per_dumbbell"
+        ) == pytest.approx(40.0)
+
+    def test_combined_logs_are_halved_for_paired_lifts(self) -> None:
+        """The tables are published per dumbbell; a pair's total scores double."""
+        assert per_dumbbell_load(
+            "dumbbell-bench-press", 40.0, convention="combined"
+        ) == pytest.approx(20.0)
+
+    def test_single_implement_lifts_are_never_halved(self) -> None:
+        """A one-arm row and a goblet squat hold one weight - no pair to split."""
+        for lift in ("dumbbell-row", "goblet-squat", "bench-press"):
+            assert per_dumbbell_load(lift, 40.0, convention="combined") == pytest.approx(
+                40.0
+            ), lift
+
+    def test_every_paired_lift_exists_in_the_dataset(self) -> None:
+        """A typo here would silently stop halving that lift."""
+        assert set(available_lifts()) >= PAIRED_DUMBBELL_LIFTS
+
+    def test_halving_a_combined_bench_brings_it_back_beside_the_barbell(self) -> None:
+        """The bug this fixes: one bench elite, the other beginner, same chest."""
+        raw = score_lift("dumbbell-bench-press", 70.0, sex="male", bodyweight_kg=80.0)
+        halved = score_lift(
+            "dumbbell-bench-press",
+            per_dumbbell_load("dumbbell-bench-press", 70.0, convention="combined"),
+            sex="male",
+            bodyweight_kg=80.0,
+        )
+        assert raw.level == "elite"
+        assert halved.level_score < raw.level_score - 2
+
+
 class TestScoring:
     def test_known_intermediate_bench(self) -> None:
         # 100 kg bench at 80 kg bodyweight sits just past intermediate for men.
@@ -99,6 +157,27 @@ class TestScoring:
         score = score_lift("squat", 160.0, sex="male", bodyweight_kg=80.0)
         assert score.ratio == pytest.approx(2.0)
         assert 0 <= score.percentile_estimate <= 100
+
+    def test_percentile_matches_the_published_band_definitions(self) -> None:
+        """Each level must report the percentile the source says it is.
+
+        Regression: this was ``level_score / 4 * 100``, which called elite the
+        100th percentile and novice the 25th. The bands are unevenly spaced in
+        percentile terms, so the mapping has to go through the real anchors.
+        """
+        bands = bands_for("bench-press", sex="male", bodyweight_kg=80.0)
+        for level, expected in zip(LEVELS, LEVEL_PERCENTILES, strict=True):
+            score = score_lift(
+                "bench-press", bands.thresholds[level], sex="male", bodyweight_kg=80.0
+            )
+            assert score.percentile_estimate == pytest.approx(expected, abs=0.6), level
+
+    def test_percentile_is_held_flat_outside_the_published_bands(self) -> None:
+        """Past either end the tables stop resolving, so the percentile stops too."""
+        weak = score_lift("bench-press", 5.0, sex="male", bodyweight_kg=80.0)
+        strong = score_lift("bench-press", 400.0, sex="male", bodyweight_kg=80.0)
+        assert weak.percentile_estimate == LEVEL_PERCENTILES[0]
+        assert strong.percentile_estimate == LEVEL_PERCENTILES[-1]
 
     def test_age_adjustment_lowers_the_bar_for_older_lifters(self) -> None:
         young = bands_for("bench-press", sex="male", bodyweight_kg=80, age=30)

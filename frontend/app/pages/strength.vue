@@ -10,10 +10,14 @@ const { data: report, pending } = await useFetch<BenchmarkReport>('/api/benchmar
 
 const entries = computed(() => report.value?.entries ?? [])
 const overall = computed(() => report.value?.overall_level_score ?? null)
+const caveats = computed(() => report.value?.caveats ?? [])
 
-/** Where the overall score sits on the same 0-4 scale the rows use. */
+/** Where the overall score sits on the same 0-4 scale the rows use.
+ * A score of `i` is the *threshold* for level `i`, so the five bands span five
+ * score units and the divisor is 5, not 4 - dividing by 4 put an elite score at
+ * the right edge of the track instead of at the start of the elite band. */
 const overallPct = computed(() =>
-  overall.value === null ? 0 : Math.max(0, Math.min(100, (overall.value / 4) * 100)),
+  overall.value === null ? 0 : Math.max(0, Math.min(100, (overall.value / 5) * 100)),
 )
 </script>
 
@@ -23,12 +27,14 @@ const overallPct = computed(() =>
       <h1>Strength standards</h1>
       <p v-if="report" class="secondary">
         {{ titleCase(report.sex) }} - {{ weight(report.bodyweight_kg) }}
-        <span class="muted">
-          ({{ report.bodyweight_source === 'measured' ? 'measured' : 'configured' }})
-        </span>
+        <span class="muted">({{ report.bodyweight_source }})</span>
         <template v-if="report.age"> - age {{ report.age }}</template>
       </p>
     </div>
+
+    <section v-if="caveats.length" class="card caveat-card">
+      <p v-for="(caveat, i) in caveats" :key="i" class="caveat">{{ caveat }}</p>
+    </section>
 
     <section v-if="overall !== null" class="card hero-card">
       <span class="tile-label secondary">Overall level</span>
@@ -75,7 +81,12 @@ const overallPct = computed(() =>
           :next-level="entry.score.next_level"
           :kg-to-next="entry.score.kg_to_next_level"
           :show-scale="i === entries.length - 1"
-        />
+        >
+          <p v-if="entry.also_logged?.length" class="also secondary">
+            Also logged against this standard, and weaker:
+            {{ entry.also_logged.join(', ') }}
+          </p>
+        </StandardsRow>
       </div>
     </section>
 
@@ -116,7 +127,10 @@ const overallPct = computed(() =>
         Standards from
         <a href="https://strengthlevel.com/strength-standards" target="_blank" rel="noopener">
           strengthlevel.com
-        </a>, interpolated to your exact bodyweight.
+        </a>, interpolated to your exact bodyweight. The band names are percentiles of
+        lifts logged on that site - beginner is the 5th, novice the 20th, intermediate
+        the 50th, advanced the 80th, elite the 95th - so they rank you against people
+        who track their training, not against the general population.
       </p>
     </section>
 
@@ -138,6 +152,25 @@ const overallPct = computed(() =>
 </template>
 
 <style scoped>
+.caveat-card {
+  border-left: 3px solid var(--warning);
+}
+
+.caveat {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.caveat + .caveat {
+  margin-top: 8px;
+}
+
+.also {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
 .page-head {
   display: flex;
   align-items: baseline;

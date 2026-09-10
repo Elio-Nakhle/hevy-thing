@@ -44,17 +44,23 @@ const PAD_R = 8
 
 const plotW = computed(() => Math.max(120, width.value - PAD_R))
 
+// A score of `i` *is* the threshold for level `i`, so band `i` covers scores i..i+1
+// and the five bands span 5 score units. The track adds 0.35 of a unit of lead-in
+// on the left so a sub-beginner marker stays visible, giving a domain of
+// -0.35..5 - and the marker and the bands must divide by that same span or the
+// bands overflow the track.
+const DOMAIN_MIN = -0.35
+const DOMAIN_SPAN = 5 - DOMAIN_MIN
+
 /** Level score 0..4 mapped across the track, clamped into view at both ends. */
 const markerX = computed(() => {
-  const clamped = Math.max(-0.35, Math.min(4.35, props.levelScore))
-  return ((clamped + 0.35) / 4.7) * plotW.value
+  const clamped = Math.max(DOMAIN_MIN, Math.min(4.35, props.levelScore))
+  return ((clamped - DOMAIN_MIN) / DOMAIN_SPAN) * plotW.value
 })
 
 const bands = computed(() => {
-  // The track spans -0.35..4.35 so a sub-beginner or supra-elite marker stays
-  // visible without the bands themselves lying about the range.
-  const unit = plotW.value / 4.7
-  const start = 0.35 * unit
+  const unit = plotW.value / DOMAIN_SPAN
+  const start = -DOMAIN_MIN * unit
   return LEVELS.map((name, i) => ({
     name,
     x: start + i * unit + (i === 0 ? 0 : GAP / 2),
@@ -149,6 +155,8 @@ const hovered = ref<string | null>(null)
         +{{ amount(kgToNext) }} {{ unitLabel }} to {{ nextLevel }}
       </span>
     </p>
+
+    <slot />
   </div>
 </template>
 

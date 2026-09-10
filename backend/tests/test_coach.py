@@ -38,8 +38,8 @@ class TestToolDefinitions:
 
     def test_every_tool_returns_json_with_its_defaults(self, tools: dict[str, Any]) -> None:
         for name, tool in tools.items():
-            if name in {"get_exercise_history", "get_standard_thresholds"}:
-                continue  # these two require an argument
+            if name in {"get_exercise_history", "get_standard_thresholds", "get_workout_plan"}:
+                continue  # these require an argument
             json.loads(tool.call({}))
 
 
@@ -59,6 +59,22 @@ class TestToolResults:
     ) -> None:
         """The model must be able to recover from a bad id, not crash the turn."""
         payload = json.loads(tools["get_exercise_history"].call({"template_id": "nope"}))
+        assert "error" in payload
+
+    def test_workout_plan_carries_a_prescription_per_exercise(
+        self, tools: dict[str, Any]
+    ) -> None:
+        listed = json.loads(tools["list_workouts"].call({"limit": 5}))
+        assert listed
+        payload = json.loads(tools["get_workout_plan"].call({"workout_id": listed[0]["id"]}))
+        assert payload["exercises"]
+        assert all("recommendation" in block for block in payload["exercises"])
+        assert payload["routine"]["title"] == listed[0]["title"]
+
+    def test_unknown_workout_reports_an_error_instead_of_raising(
+        self, tools: dict[str, Any]
+    ) -> None:
+        payload = json.loads(tools["get_workout_plan"].call({"workout_id": "nope"}))
         assert "error" in payload
 
     def test_standard_thresholds_are_returned_for_a_known_lift(

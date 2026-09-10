@@ -186,7 +186,7 @@
     {
       "lift": "deadlift",
       "match": [
-        "^deadlift",
+        "^deadlift(?!\\s*\\(dumbbell\\))",
         "deadlift \\(barbell\\)",
         "conventional deadlift"
       ]

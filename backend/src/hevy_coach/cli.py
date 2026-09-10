@@ -123,6 +123,9 @@ def benchmark_command(
         )
         raise typer.Exit(0)
 
+    for caveat in report.caveats:
+        console.print(f"[yellow]![/yellow] {caveat}\n")
+
     table = Table(title=f"Strength standards ({report.sex}, {report.bodyweight_kg:g} kg)")
     table.add_column("Exercise")
     table.add_column("e1RM", justify="right")

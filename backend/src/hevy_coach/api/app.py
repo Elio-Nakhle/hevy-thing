@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from hevy_coach import csv_import
-from hevy_coach.analytics import metrics, progression
+from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
 from hevy_coach.analytics.standards import available_lifts, bands_for
 from hevy_coach.coach.agent import Coach
@@ -147,6 +147,23 @@ def get_trends(db: DbDep, settings: SettingsDep, days: int = 180) -> list[dict[s
 @app.get("/api/insights")
 def get_insights(db: DbDep, settings: SettingsDep, days: int = 180) -> list[dict[str, Any]]:
     return [asdict(i) for i in progression.insights(db, settings, days=days)]
+
+
+# -- sessions ---------------------------------------------------------------
+
+
+@app.get("/api/workouts")
+def get_workouts(db: DbDep, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    return [asdict(w) for w in session.list_workouts(db, limit=limit, offset=offset)]
+
+
+@app.get("/api/workouts/{workout_id}")
+def get_workout(db: DbDep, settings: SettingsDep, workout_id: str) -> dict[str, Any]:
+    """One session with a per-exercise prescription for its next run."""
+    try:
+        return asdict(session.workout_detail(db, settings, workout_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 # -- strength standards -----------------------------------------------------

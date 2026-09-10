@@ -10,6 +10,12 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hevy_coach.goals import Goal
+
+#: How a log records the load on a two-dumbbell movement. Lives here rather than
+#: in the analytics package, which imports this module back for DATA_DIR.
+DumbbellLoad = Literal["per_dumbbell", "combined"]
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
@@ -41,7 +47,14 @@ class Settings(BaseSettings):
     # --- Lifter profile -----------------------------------------------------
     # Used to place your lifts on the strength-standard curves.
     sex: Sex = "male"
+    # What the log is for. Changes which findings the analytics report and the
+    # thresholds they use - see hevy_coach/goals.py.
+    training_goal: Goal = "hypertrophy"
     bodyweight_kg: float = Field(default=80.0, gt=20, lt=300)
+    # How you type the load for a two-dumbbell movement. The standards are
+    # published per dumbbell, which is also what Hevy asks for; set this to
+    # "combined" if you enter the pair's total instead.
+    dumbbell_load: DumbbellLoad = "per_dumbbell"
     birth_date: date | None = None
     units: Literal["kg", "lb"] = "kg"
 
@@ -54,6 +67,18 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @property
+    def bodyweight_is_default(self) -> bool:
+        """True when nothing supplied a bodyweight and the class default stands.
+
+        Every strength standard is indexed on bodyweight, so a defaulted number
+        silently rescales the whole benchmark - at 80 kg a 60 kg bench is
+        "beginner", at 55 kg it is "novice" most of the way to intermediate.
+        Callers use this to say the figure is a placeholder rather than present
+        it as the lifter's.
+        """
+        return "bodyweight_kg" not in self.model_fields_set
 
     @property
     def age(self) -> float | None:

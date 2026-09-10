@@ -26,6 +26,7 @@ function cycleTheme() {
 
 const links = [
   { to: '/', label: 'Dashboard' },
+  { to: '/workouts', label: 'Workouts' },
   { to: '/strength', label: 'Strength' },
   { to: '/exercises', label: 'Exercises' },
   { to: '/coach', label: 'Coach' },
