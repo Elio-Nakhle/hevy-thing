@@ -280,6 +280,34 @@ def get_next_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+class RoutineDismissal(BaseModel):
+    # The title carries spaces, emoji and anything else Hevy allowed, so it goes
+    # in the body rather than the path where it would need escaping both ways.
+    title: str = Field(min_length=0, max_length=200)
+    dismissed: bool = True
+
+
+@app.put("/api/routines/dismissed")
+def set_routine_dismissed(
+    payload: RoutineDismissal, db: DbDep, settings: SettingsDep
+) -> dict[str, Any]:
+    """Put a routine away, or bring it back.
+
+    Trying a routine once is not a decision to keep it in the rotation, and the
+    date heuristics cannot tell "I am done with this" from "I have not got to it
+    yet". Returns the refreshed next session, since dismissing what is currently
+    due changes what is due.
+    """
+    known = {routine.title for routine in session.routines_due(db)}
+    if payload.title not in known:
+        raise HTTPException(
+            status_code=404, detail=f"no routine titled {payload.title!r} in the log"
+        )
+
+    db.set_routine_dismissed(payload.title, payload.dismissed)
+    return asdict(session.next_session(db, settings))
+
+
 # -- strength standards -----------------------------------------------------
 
 

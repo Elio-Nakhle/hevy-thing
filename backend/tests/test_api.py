@@ -317,3 +317,50 @@ def _history() -> tuple[str, ...]:
                 for index in range(3)
             )
     return tuple(rows)
+
+
+# -- putting a routine away -------------------------------------------------
+
+
+def test_dismissing_a_routine_changes_what_is_due(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+    assert client.get("/api/next-session").json()["routine"]["title"] == "Push"
+
+    body = client.put("/api/routines/dismissed", json={"title": "Push"}).json()
+
+    # The response is the refreshed session, because dismissing what is due
+    # changes what is due.
+    assert body["routine"]["title"] == "Pull"
+    assert client.get("/api/next-session").json()["routine"]["title"] == "Pull"
+
+
+def test_a_dismissal_is_reversible(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+    client.put("/api/routines/dismissed", json={"title": "Push"})
+
+    body = client.put("/api/routines/dismissed", json={"title": "Push", "dismissed": False}).json()
+
+    assert body["routine"]["title"] == "Push"
+
+
+def test_the_switcher_marks_which_routines_are_current(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    alternatives = client.get("/api/next-session").json()["alternatives"]
+
+    assert {r["title"] for r in alternatives if r["active"]} == {"Push", "Pull"}
+    assert all(r["dismissed"] is False for r in alternatives)
+
+
+def test_dismissing_an_unknown_routine_is_a_404(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(*_history()))
+
+    response = client.put("/api/routines/dismissed", json={"title": "Legs"})
+
+    assert response.status_code == 404
+
+
+def test_dismissal_needs_a_log_to_act_on(client: TestClient) -> None:
+    response = client.put("/api/routines/dismissed", json={"title": "Push"})
+
+    assert response.status_code == 404

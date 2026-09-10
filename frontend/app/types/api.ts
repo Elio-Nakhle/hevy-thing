@@ -126,7 +126,7 @@ export interface Headline {
   next_up: NextUp | null
 }
 
-/** A routine and how long it has been waiting. */
+/** A routine, how long it has been waiting, and whether it is still on. */
 export interface RoutineDue {
   title: string
   /** Most recent run, which the prescriptions are computed from. */
@@ -134,6 +134,10 @@ export interface RoutineDue {
   last_performed: string
   days_since: number
   runs: number
+  /** The lifter put this one away. Sticky until they bring it back. */
+  dismissed: boolean
+  /** Part of the current rotation: repeats, trained recently, not put away. */
+  active: boolean
 }
 
 export interface NextSessionExercise {

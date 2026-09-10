@@ -561,3 +561,94 @@ def test_the_last_session_reports_every_top_set(tmp_path) -> None:
     assert exercise.last_top_reps == 12
     assert exercise.last_top_set_reps == [12, 10]
     assert exercise.recommendation.target_reps == 11
+
+
+# -- putting a routine away -------------------------------------------------
+
+
+def test_a_dismissed_routine_is_not_offered_or_predicted(tmp_path) -> None:
+    """Trying a routine is not committing to it."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Pull"
+    put_away = next(r for r in upcoming.alternatives if r.title == "Push")
+    assert put_away.dismissed is True
+    assert put_away.active is False
+
+
+def test_dismissal_survives_training_it_again(tmp_path) -> None:
+    """Sticky on purpose. A routine reappearing on its own would be the
+    surprising behaviour, and a log has plenty of reasons to contain one more
+    session of something the lifter is finished with."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.upsert_workouts([_workout(9, [(60.0, 10), (60.0, 10)], title="Push", days_ago=0)])
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title == "Pull"
+
+
+def test_asking_for_a_dismissed_routine_by_name_still_works(tmp_path) -> None:
+    """Naming it is a stronger signal than having put it away."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path), title="Push")
+
+    assert upcoming.routine.title == "Push"
+    assert upcoming.exercises
+
+
+def test_restoring_a_routine_brings_it_back(tmp_path) -> None:
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.set_routine_dismissed("Push", False)
+
+    assert session.next_session(db, _settings(tmp_path)).routine.title == "Push"
+
+
+def test_dismissing_everything_still_answers(tmp_path) -> None:
+    """A blank page would be worse than a guess the lifter can switch away from."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.set_routine_dismissed("Push", True)
+    db.set_routine_dismissed("Pull", True)
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    assert upcoming.routine.title in {"Push", "Pull"}
+    assert upcoming.exercises
+
+
+def test_only_the_current_rotation_is_active(tmp_path) -> None:
+    """`active` is what the switcher shows without being asked. On a real log
+    this is the difference between two chips and seven."""
+    db = Database(tmp_path / "next.db")
+    _rotation(db)
+    db.upsert_workouts(
+        [
+            _workout(7, [(40.0, 10)], title="Baku hotel gym", days_ago=9),
+            _workout(8, [(50.0, 8)], title="Afternoon workout", days_ago=104),
+            _workout(9, [(50.0, 8)], title="Afternoon workout", days_ago=110),
+        ]
+    )
+
+    upcoming = session.next_session(db, _settings(tmp_path))
+
+    active = {r.title for r in upcoming.alternatives if r.active}
+    assert active == {"Push", "Pull"}
+    # Everything else is still reachable, just not offered up front.
+    assert {r.title for r in upcoming.alternatives} == {
+        "Push",
+        "Pull",
+        "Baku hotel gym",
+        "Afternoon workout",
+    }

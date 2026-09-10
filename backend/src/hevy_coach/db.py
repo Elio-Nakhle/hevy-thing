@@ -17,12 +17,13 @@ import json
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from hevy_coach.hevy.models import HevyWorkout
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS workouts (
@@ -70,6 +71,15 @@ CREATE TABLE IF NOT EXISTS body_measurements (
     weight_kg    REAL,
     lean_mass_kg REAL,
     fat_percent  REAL
+);
+
+-- Routines the lifter has put away. Trying a routine once is not a decision to
+-- keep it in the rotation, and a log accumulates titles faster than it
+-- accumulates programmes, so "which of these am I actually doing" needs an
+-- answer the lifter can give directly rather than one only inferred from dates.
+CREATE TABLE IF NOT EXISTS dismissed_routines (
+    title        TEXT PRIMARY KEY,
+    dismissed_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -219,6 +229,28 @@ class Database:
                 )
                 count += 1
         return count
+
+    def set_routine_dismissed(self, title: str, dismissed: bool) -> None:
+        """Put a routine away, or bring it back.
+
+        Sticky either way: nothing un-dismisses a routine because it was trained
+        again. Coming back on its own would be the surprising behaviour - the
+        lifter said to put it away, and a log has plenty of reasons to contain
+        one more session of something they are finished with.
+        """
+        with self.cursor() as cur:
+            if dismissed:
+                cur.execute(
+                    "INSERT INTO dismissed_routines(title, dismissed_at) VALUES(?, ?) "
+                    "ON CONFLICT(title) DO UPDATE SET dismissed_at=excluded.dismissed_at",
+                    (title, datetime.now(UTC).isoformat()),
+                )
+            else:
+                cur.execute("DELETE FROM dismissed_routines WHERE title = ?", (title,))
+
+    def dismissed_routines(self) -> set[str]:
+        """Titles the lifter has put away. Empty for a log nobody has curated."""
+        return {row["title"] for row in self.query("SELECT title FROM dismissed_routines")}
 
     def upsert_body_measurements(self, measurements: Iterable[Any]) -> int:
         count = 0

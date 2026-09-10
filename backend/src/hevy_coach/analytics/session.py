@@ -887,7 +887,7 @@ SUMMARY_NAMES = 2
 
 @dataclass
 class RoutineDue:
-    """A routine, and how long it has been waiting."""
+    """A routine, how long it has been waiting, and whether it is still on."""
 
     title: str
     #: Most recent run, which the prescriptions are computed from.
@@ -895,6 +895,11 @@ class RoutineDue:
     last_performed: str
     days_since: int
     runs: int
+    #: The lifter put this one away. Sticky until they bring it back.
+    dismissed: bool = False
+    #: Part of the current rotation, so a candidate for "what is due next" and
+    #: worth offering without being asked for. See :func:`_due_next`.
+    active: bool = False
 
 
 @dataclass
@@ -931,23 +936,35 @@ class NextSession:
 
 
 def routines_due(db: Database) -> list[RoutineDue]:
-    """Every routine in the log, longest-unused first."""
+    """Every routine in the log, longest-unused first, flagged for relevance."""
     now = datetime.now(UTC)
-    due = [
-        RoutineDue(
-            title=title,
-            workout_id=entries[-1][0],
-            last_performed=entries[-1][1],
-            days_since=max(0, (now - datetime.fromisoformat(entries[-1][1])).days),
-            runs=len(entries),
+    dismissed = db.dismissed_routines()
+
+    due = []
+    for title, entries in _routine_runs(db).items():
+        workout_id, last = entries[-1]
+        days_since = max(0, (now - datetime.fromisoformat(last)).days)
+        put_away = title in dismissed
+        due.append(
+            RoutineDue(
+                title=title,
+                workout_id=workout_id,
+                last_performed=last,
+                days_since=days_since,
+                runs=len(entries),
+                dismissed=put_away,
+                active=(
+                    not put_away
+                    and len(entries) >= MIN_RUNS_FOR_ROUTINE
+                    and days_since <= ACTIVE_WINDOW_DAYS
+                ),
+            )
         )
-        for title, entries in _routine_runs(db).items()
-    ]
     return sorted(due, key=lambda routine: routine.last_performed)
 
 
 def _due_next(ranked: list[RoutineDue]) -> RoutineDue:
-    """The routine most overdue *within the current programme*.
+    """The routine most overdue *within the current rotation*.
 
     "Most overdue" on its own is wrong on a real log, and wrong in a way that
     looks plausible until you check it. A Hevy log accumulates titles: sessions
@@ -958,19 +975,18 @@ def _due_next(ranked: list[RoutineDue]) -> RoutineDue:
     last trained 104 days ago, over the Full A / Full B pair the lifter was
     plainly alternating that week.
 
-    So a candidate has to be both a routine (it repeats) and current (trained
-    inside :data:`ACTIVE_WINDOW_DAYS`). Failing that there is no rotation to
-    infer, and the most recently trained routine is the better guess: after a
-    layoff you resume where you left off, and with one routine you repeat it.
+    ``active`` is that filter - repeats, trained recently, not put away - and it
+    is what a candidate has to be. Failing that there is no rotation to infer,
+    and the most recently trained routine is the better guess: after a layoff
+    you resume where you left off, and with one routine you repeat it. Even then
+    a dismissed routine is the last resort, because the lifter has said so.
     """
-    current = [
-        routine
-        for routine in ranked
-        if routine.runs >= MIN_RUNS_FOR_ROUTINE and routine.days_since <= ACTIVE_WINDOW_DAYS
-    ]
-    # `ranked` is oldest-first, so the most overdue current routine is first and
-    # the most recently trained of anything is last.
-    return current[0] if current else ranked[-1]
+    # `ranked` is oldest-first, so the most overdue is first and the most
+    # recently trained is last.
+    if current := [routine for routine in ranked if routine.active]:
+        return current[0]
+    kept = [routine for routine in ranked if not routine.dismissed]
+    return (kept or ranked)[-1]
 
 
 def _name_list(names: list[str]) -> str:
@@ -1014,6 +1030,8 @@ def next_session(
     if title is None:
         chosen = _due_next(ranked)
     else:
+        # An explicit request wins over every heuristic, dismissal included:
+        # asking for a routine by name is the strongest signal there is.
         found = next((routine for routine in ranked if routine.title == title), None)
         if found is None:
             raise LookupError(f"no routine titled {title!r}")

@@ -34,11 +34,14 @@ upload or workouts/*.csv  ->  SQLite  ->  analytics  ->  FastAPI  ->  Nuxt
   progression, with the load increment read from the jumps you actually make and
   deload/hold branches for lifts that have stopped responding. See
   [Next-session prescriptions](#next-session-prescriptions).
-- **Next session, on your phone** - `/next` is a one-column read-only view of
-  the prescriptions for whichever routine is due, sized for reading at the rack.
-  It works out what is due from what you actually train: a routine has to repeat
+- **Next session, on your phone** - `/next` is a one-column view of the
+  prescriptions for whichever routine is due, sized for reading at the rack. It
+  works out what is due from what you actually train: a routine has to repeat
   and to have been trained in the last four weeks, so a dropped programme or a
-  week of hotel-gym improvising cannot sit at the top of the list forever.
+  week of hotel-gym improvising cannot sit at the top of the list. Trying five
+  routines is not committing to five - the rest stay one tap away, and you can
+  put a routine away for good when the dates alone cannot know you are done
+  with it.
 - **Coach** - Claude with read-only tools over the log, so answers come from
   your actual numbers.
 

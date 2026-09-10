@@ -8,22 +8,66 @@
  * research rated them the most useful thing in the app and none of them could
  * get to them at the point of use.
  *
- * So this page is deliberately thin: one column, big type, no charts, read-only.
- * It also states each prescription's reasoning inline rather than in a tooltip,
- * because native tooltips do not open on touch.
+ * So this page is deliberately thin: one column, big type, no charts. It states
+ * each prescription's reasoning inline rather than in a tooltip, because native
+ * tooltips do not open on touch.
+ *
+ * The one thing it writes is which routines are in the rotation. Trying five
+ * routines is not committing to five, and a Hevy log accumulates titles faster
+ * than it accumulates programmes - so the switcher offers the current rotation
+ * and keeps the rest one tap away, with the lifter able to put a routine away
+ * for good when the date heuristics cannot know they are finished with it.
  */
 import { computed, ref } from 'vue'
-import type { NextSession, NextSessionExercise, Recommendation, SessionAction } from '~/types/api'
+import type {
+  NextSession,
+  NextSessionExercise,
+  Recommendation,
+  RoutineDue,
+  SessionAction,
+} from '~/types/api'
 import { fullDate, titleCase } from '~/utils/format'
 
 const { weight } = useUnits()
 
 /** Which routine to show. Empty means "whichever is due". */
 const routine = ref('')
+const showOthers = ref(false)
+const busy = ref(false)
 
 const { data: session, pending, error } = await useFetch<NextSession>('/api/next-session', {
   query: computed(() => (routine.value ? { routine: routine.value } : {})),
 })
+
+/** The current rotation, which is what the switcher offers up front. */
+const rotation = computed(() => (session.value?.alternatives ?? []).filter((r) => r.active))
+
+/** Everything else: tried once, long abandoned, or explicitly put away. Kept
+ *  reachable because "not in the rotation" is not the same as "never again". */
+const others = computed(() => (session.value?.alternatives ?? []).filter((r) => !r.active))
+
+/** Whichever routine is on screen, even if it is not in the rotation. */
+const shown = computed(() => session.value?.routine.title ?? '')
+
+async function setDismissed(item: RoutineDue, dismissed: boolean) {
+  busy.value = true
+  try {
+    await $fetch('/api/routines/dismissed', {
+      method: 'PUT',
+      body: { title: item.title, dismissed },
+    })
+    // Putting away what is on screen means the app should move off it.
+    if (dismissed && item.title === shown.value) routine.value = ''
+    // Refetches this page and the dashboard headline, which names what is due.
+    await refreshNuxtData()
+  } finally {
+    busy.value = false
+  }
+}
+
+function select(item: RoutineDue) {
+  routine.value = item.title
+}
 
 /** How each action reads at a glance. Colour carries "is this a push or a
  *  back-off", which is the only distinction that matters mid-session. */
@@ -105,18 +149,69 @@ function daysAgo(days: number): string {
         </p>
       </header>
 
-      <div v-if="session.alternatives.length > 1" class="switcher">
+      <div v-if="rotation.length > 1 || others.length" class="switcher">
+        <span v-for="option in rotation" :key="option.title" class="chip-group">
+          <button
+            type="button"
+            class="chip"
+            :aria-pressed="option.title === shown"
+            @click="select(option)"
+          >
+            {{ routineLabel(option.title) }}
+            <span class="chip-days">{{ option.days_since }}d</span>
+          </button>
+          <button
+            type="button"
+            class="chip-side"
+            :disabled="busy"
+            :title="`Take ${routineLabel(option.title)} out of the rotation`"
+            :aria-label="`Take ${routineLabel(option.title)} out of the rotation`"
+            @click="setDismissed(option, true)"
+          >&times;</button>
+        </span>
+
         <button
-          v-for="option in session.alternatives"
-          :key="option.title"
+          v-if="others.length"
           type="button"
-          class="chip"
-          :aria-pressed="option.title === session.routine.title"
-          @click="routine = option.title"
+          class="chip more"
+          :aria-expanded="showOthers"
+          @click="showOthers = !showOthers"
         >
-          {{ routineLabel(option.title) }}
-          <span class="chip-days">{{ option.days_since }}d</span>
+          {{ showOthers ? 'Hide' : `${others.length} not in your rotation` }}
         </button>
+      </div>
+
+      <div v-if="showOthers && others.length" class="others">
+        <p class="others-note muted">
+          Routines you have run once, or not in the last four weeks, or put away. They are
+          not offered or predicted - tap one to use it anyway.
+        </p>
+        <span v-for="option in others" :key="option.title" class="chip-group">
+          <button
+            type="button"
+            class="chip ghost"
+            :aria-pressed="option.title === shown"
+            @click="select(option)"
+          >
+            {{ routineLabel(option.title) }}
+            <span class="chip-days">
+              {{ option.runs === 1 ? 'once' : `${option.runs} runs` }} &middot;
+              {{ option.days_since }}d
+            </span>
+          </button>
+          <button
+            type="button"
+            class="chip-side"
+            :disabled="busy"
+            :title="option.dismissed
+              ? `Put ${routineLabel(option.title)} back in the rotation`
+              : `Put ${routineLabel(option.title)} away`"
+            :aria-label="option.dismissed
+              ? `Put ${routineLabel(option.title)} back in the rotation`
+              : `Put ${routineLabel(option.title)} away`"
+            @click="setDismissed(option, !option.dismissed)"
+          >{{ option.dismissed ? '+' : '×' }}</button>
+        </span>
       </div>
 
       <p class="summary" :class="{ stale: pending }">{{ session.summary }}</p>
@@ -190,6 +285,66 @@ function daysAgo(days: number): string {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+/* The chip and its put-away button read as one control. */
+.chip-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.chip-group .chip {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 0;
+}
+
+.chip-side {
+  min-height: 44px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip-side:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--baseline);
+}
+
+.chip-side:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chip.ghost {
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.chip.more {
+  color: var(--text-secondary);
+  border-style: dashed;
+}
+
+.others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 16px;
+}
+
+.others-note {
+  flex: 1 0 100%;
+  margin: 0 0 2px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* 44px tall: the smallest thing a thumb hits reliably. */
