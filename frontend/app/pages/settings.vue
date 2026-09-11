@@ -1,10 +1,20 @@
 <script setup lang="ts">
 /** Settings: the lifter profile, and what the rest of the app reads it for. */
-import type { Health, Profile } from '~/types/api'
+import { computed } from 'vue'
+import type { CoachStatus, Health, Profile } from '~/types/api'
 import { fullDate } from '~/utils/format'
 
 const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
 const { data: health } = await useFetch<Health>('/api/health')
+const { data: coach } = await useFetch<CoachStatus>('/api/coach')
+
+/** Where the coach's model runs, which is the one thing here that can be
+ *  missing outright rather than merely unset. */
+const coachRuns = computed(() => {
+  if (coach.value?.backend === 'cli') return 'Claude Code CLI on this machine'
+  if (coach.value?.backend === 'api') return 'Anthropic API'
+  return 'nothing yet - no API key and no Claude Code'
+})
 </script>
 
 <template>
@@ -45,6 +55,10 @@ const { data: health } = await useFetch<Health>('/api/health')
             <TableRow>
               <TableCell>Coach model</TableCell>
               <TableCell>{{ profile?.coach_model ?? '-' }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Coach runs on</TableCell>
+              <TableCell :class="coach && !coach.ready && 'text-serious'">{{ coachRuns }}</TableCell>
             </TableRow>
           </TableBody>
         </Table>

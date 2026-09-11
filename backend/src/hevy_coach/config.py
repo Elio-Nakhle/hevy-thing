@@ -19,6 +19,10 @@ DumbbellLoad = Literal["per_dumbbell", "combined"]
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
+#: How the coach reaches a model: the Anthropic API, the local `claude` CLI, or
+#: whichever of the two this machine can actually run.
+CoachBackend = Literal["auto", "api", "cli"]
+
 Sex = Literal["male", "female"]
 Units = Literal["kg", "lb"]
 #: Kilograms, bounded to catch a typo or a wrong field rather than to police a
@@ -55,8 +59,15 @@ class Settings(BaseSettings):
     # Left unset by default so the SDK's own credential chain applies
     # (ANTHROPIC_API_KEY, then ANTHROPIC_AUTH_TOKEN, then an `ant auth login` profile).
     anthropic_api_key: str | None = None
+    # Where the coach's model runs. "api" needs a key above; "cli" needs Claude
+    # Code installed and signed in, and costs no key at all. "auto" takes the
+    # key when there is one and the CLI otherwise - see coach/cli_agent.py.
+    coach_backend: CoachBackend = "auto"
     coach_model: str = "claude-opus-5"
-    coach_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
+    # Effort buys thinking tokens, which are output tokens, which are the
+    # dearest thing in the request. "medium" answers a training question from a
+    # briefing and a couple of queries; raise it for a genuinely open analysis.
+    coach_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
     # --- Storage ------------------------------------------------------------
     database_path: Path = REPO_ROOT / "data" / "hevy.db"

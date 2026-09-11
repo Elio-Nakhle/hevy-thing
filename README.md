@@ -169,7 +169,35 @@ uv run hevy-coach insights      # stalls, regressions, volume gaps
 uv run hevy-coach ask "why has my bench stalled?"
 ```
 
-The coach needs an Anthropic API key (`ANTHROPIC_API_KEY`); nothing else does.
+The coach needs a model to run on; nothing else in the project does. Either
+works, and it takes whichever it finds:
+
+- **The Claude Code CLI**, already signed in - run `claude` once and the coach
+  uses that login. No API key.
+- **An Anthropic API key** in `ANTHROPIC_API_KEY`, which takes precedence.
+
+`COACH_BACKEND=api|cli` pins it if you have both. Either way the model only gets
+read-only tools over the local database - the CLI route runs with every built-in
+Claude Code tool switched off, so it has no shell and no file access.
+
+### What a question costs
+
+A model reading the log is the expensive part of this project, and most of the
+cost is not the reading - it is that every tool result stays in the conversation
+and is re-read on each later turn. Four things keep it down, measured on a
+29-workout log against the same question:
+
+| | |
+| --- | --- |
+| Tool results ship as pipe-delimited tables, keys in the header only | 82% fewer tokens across the 13 tools |
+| A precomputed `<briefing>` rides on the first message | 8 tool calls became 1 |
+| A lookup is answered by the analytics, with no model | free, and instant |
+| An answer is cached against the state of the log | free on a repeat |
+
+Together: **$0.49 to $0.09** for "what should I change in my training this
+month?" The briefing is rebuilt once per import, not once per question, and the
+answer cache is keyed on the log *and* the profile - editing your bodyweight
+rescales every strength level, so it has to invalidate.
 
 ## Layout
 

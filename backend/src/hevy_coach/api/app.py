@@ -17,7 +17,7 @@ from hevy_coach.analytics import metrics, progression, session
 from hevy_coach.analytics.benchmark import benchmark
 from hevy_coach.analytics.powerlifting import total_report
 from hevy_coach.analytics.standards import available_lifts, bands_for
-from hevy_coach.coach.agent import Coach
+from hevy_coach.coach import ask, cli_agent
 from hevy_coach.config import Settings, get_settings
 from hevy_coach.db import Database
 from hevy_coach.goals import PROFILES
@@ -351,6 +351,19 @@ def get_benchmark(db: DbDep, settings: SettingsDep, days: int | None = 365) -> d
 class CoachRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     history: list[dict[str, Any]] | None = None
+    # How a follow-up keeps its context on the CLI backend: hand back the
+    # session_id the previous answer returned.
+    session_id: str | None = None
+
+
+@app.get("/api/coach")
+def coach_status(settings: SettingsDep) -> dict[str, Any]:
+    """Whether the coach can run here, and on which backend.
+
+    The page asks before the user types, so it can say what is missing instead
+    of failing on the first question.
+    """
+    return cli_agent.describe(settings)
 
 
 @app.post("/api/coach")
@@ -362,11 +375,20 @@ async def ask_coach(
             status_code=409,
             detail="No workouts imported yet. Run POST /api/import first.",
         )
-    coach = Coach(db, settings)
     try:
-        # The SDK client is synchronous and the tool loop is I/O-bound, so run it
-        # off the event loop rather than blocking every other request.
-        result = await asyncio.to_thread(coach.ask, payload.question, payload.history)
+        # Synchronous throughout - the analytics hit SQLite and the tool loop is
+        # I/O-bound - so run it off the event loop rather than blocking every
+        # other request.
+        result = await asyncio.to_thread(
+            ask.answer,
+            db,
+            settings,
+            payload.question,
+            history=payload.history,
+            session_id=payload.session_id,
+        )
+    except cli_agent.CoachUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"coach failed: {exc}") from exc
 

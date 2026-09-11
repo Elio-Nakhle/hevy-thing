@@ -225,7 +225,8 @@ def ask(
     question: Annotated[str, typer.Argument(help="What to ask the coach")],
 ) -> None:
     """Ask the AI coach a question about your training."""
-    from hevy_coach.coach.agent import Coach
+    from hevy_coach.coach import ask as ask_module
+    from hevy_coach.coach import cli_agent
 
     db = _db()
     if db.workout_count() == 0:
@@ -234,13 +235,18 @@ def ask(
         )
         raise typer.Exit(1)
 
-    coach = Coach(db, get_settings())
-    with console.status("Thinking..."):
-        result = coach.ask(question)
+    try:
+        with console.status("Thinking..."):
+            result = ask_module.answer(db, get_settings(), question)
+    except cli_agent.CoachUnavailable as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(Markdown(result["answer"] or "_No answer returned._"))
     if result["tools_used"]:
         console.print(f"\n[dim]tools: {', '.join(dict.fromkeys(result['tools_used']))}[/dim]")
+    via = result["backend"] + (" (cached)" if result.get("cached") else "")
+    console.print(f"[dim]via: {via}[/dim]")
 
 
 @app.command()

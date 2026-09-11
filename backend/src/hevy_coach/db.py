@@ -86,6 +86,19 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Answers the coach has already given about a log in this exact state. The log
+-- only changes on import, so the same question against the same fingerprint has
+-- the same answer, and paying a model to produce it twice is money for nothing.
+-- Rows for any other fingerprint are dropped on write, so this stays small.
+CREATE TABLE IF NOT EXISTS coach_answers (
+    key         TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    question    TEXT NOT NULL,
+    answer      TEXT NOT NULL,
+    tools_used  TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
 """
 
 
@@ -153,6 +166,46 @@ class Database:
                 "INSERT INTO meta(key, value) VALUES(?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, value),
+            )
+
+    # -- the coach's answer cache ------------------------------------------
+
+    def get_coach_answer(self, key: str) -> dict[str, Any] | None:
+        """A previous answer to this exact question about this exact log."""
+        row = self.query_one(
+            "SELECT answer, tools_used, created_at FROM coach_answers WHERE key = ?", (key,)
+        )
+        if row is None:
+            return None
+        return {
+            "answer": row["answer"],
+            "tools_used": json.loads(row["tools_used"]),
+            "created_at": row["created_at"],
+        }
+
+    def put_coach_answer(
+        self, key: str, *, fingerprint: str, question: str, answer: str, tools_used: list[str]
+    ) -> None:
+        """Remember an answer, and forget every answer about an older log."""
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM coach_answers WHERE fingerprint <> ?", (fingerprint,))
+            cur.execute(
+                """
+                INSERT INTO coach_answers(key, fingerprint, question, answer, tools_used,
+                                          created_at)
+                VALUES(?, ?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    answer=excluded.answer, tools_used=excluded.tools_used,
+                    created_at=excluded.created_at
+                """,
+                (
+                    key,
+                    fingerprint,
+                    question,
+                    answer,
+                    json.dumps(tools_used),
+                    datetime.now(UTC).isoformat(),
+                ),
             )
 
     # -- writes ------------------------------------------------------------

@@ -489,3 +489,39 @@ export interface WorkoutDetail {
   muscle_groups: SessionMuscleVolume[]
   notes: string[]
 }
+
+/** Where the coach's model runs: `cli` is the local Claude Code binary, which
+ *  authenticates as its own login and needs no API key. */
+export type CoachBackend = 'api' | 'cli'
+
+/** `GET /api/coach` - what the coach can run on this machine, asked before the
+ *  first question so the page can say what is missing instead of failing. */
+export interface CoachStatus {
+  /** Null when neither backend is usable; `detail` then says what to do. */
+  backend: CoachBackend | null
+  ready: boolean
+  model: string
+  effort: string
+  api_key_configured: boolean
+  claude_cli_available: boolean
+  detail: string | null
+}
+
+/** What produced an answer. `computed` means the analytics answered it directly
+ *  and no model ran - a lookup does not need one. */
+export type CoachAnswerSource = CoachBackend | 'computed'
+
+/** `POST /api/coach` */
+export interface CoachAnswer {
+  backend: CoachAnswerSource
+  /** True when this exact question was already answered about this exact log. */
+  cached: boolean
+  answer: string
+  /** Tools the model called, or - for a computed answer - what computed it. */
+  tools_used: string[]
+  usage: Record<string, number>
+  stop_reason: string | null
+  /** CLI backend only: pass back on the next question to stay in the same
+   *  conversation. The CLI keeps the transcript, so nothing else has to. */
+  session_id?: string | null
+}

@@ -17,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hevy_coach.api import app as api
+from hevy_coach.coach import cli_agent
 from hevy_coach.config import PROFILE_FIELDS, Settings, get_settings
 from tests.conftest import export_row, export_text, write_export
 
@@ -364,3 +365,81 @@ def test_dismissal_needs_a_log_to_act_on(client: TestClient) -> None:
     response = client.put("/api/routines/dismissed", json={"title": "Push"})
 
     assert response.status_code == 404
+
+
+# -- the coach --------------------------------------------------------------
+
+
+@pytest.fixture
+def no_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The developer's own credential must not decide what the coach reports."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+
+def test_the_coach_reports_the_local_cli_when_there_is_no_key(
+    client: TestClient, no_api_key: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page asks this before the user types, and has to get a usable answer."""
+    monkeypatch.setattr(cli_agent, "claude_cli", lambda: "/usr/local/bin/claude")
+
+    body = client.get("/api/coach").json()
+
+    assert body == {
+        "backend": "cli",
+        "ready": True,
+        "model": "claude-opus-5",
+        "effort": "medium",
+        "api_key_configured": False,
+        "claude_cli_available": True,
+        "detail": None,
+    }
+
+
+def test_the_coach_says_so_when_it_has_nothing_to_run_on(
+    client: TestClient, no_api_key: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli_agent, "claude_cli", lambda: None)
+
+    body = client.get("/api/coach").json()
+
+    assert body["ready"] is False
+    assert body["backend"] is None
+    assert "Claude Code" in body["detail"]
+
+
+def test_asking_without_a_backend_is_a_503(
+    client: TestClient, no_api_key: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Not a 502: nothing failed, there is nothing installed to fail."""
+    client.post("/api/import", files=_upload(*_history()))
+    monkeypatch.setattr(cli_agent, "claude_cli", lambda: None)
+
+    response = client.post("/api/coach", json={"question": "What next?"})
+
+    assert response.status_code == 503
+    assert "Claude Code" in response.json()["detail"]
+
+
+def test_asking_without_a_log_is_a_409(client: TestClient) -> None:
+    """Checked before any model is reached - the coach has nothing to read."""
+    response = client.post("/api/coach", json={"question": "What next?"})
+
+    assert response.status_code == 409
+
+
+def test_a_lookup_is_answered_from_the_log_with_no_model(
+    client: TestClient, no_api_key: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cheapest route works on a machine that could not run a model at all."""
+    client.post("/api/import", files=_upload(*_history()))
+    monkeypatch.setattr(cli_agent, "claude_cli", lambda: None)
+
+    response = client.post("/api/coach", json={"question": "Is my volume balanced?"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["backend"] == "computed"
+    assert body["cached"] is False
+    assert "sets/week" in body["answer"]
+    assert body["tools_used"] == ["muscle-group volume vs your goal's threshold"]
