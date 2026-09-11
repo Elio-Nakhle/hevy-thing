@@ -83,6 +83,16 @@ def test_upload_shows_up_in_health(client: TestClient) -> None:
     assert body["available_export"] == "workouts.csv"
 
 
+def test_clear_data_removes_imported_history(client: TestClient) -> None:
+    client.post("/api/import", files=_upload(export_row()))
+
+    response = client.delete("/api/data")
+
+    assert response.status_code == 200
+    assert client.get("/api/health").json()["workouts"] == 0
+    assert client.get("/api/health").json()["last_import"] is None
+
+
 def test_uploading_a_non_csv_is_rejected(client: TestClient, export_dir: Path) -> None:
     files = {"file": ("history.pdf", b"%PDF-1.4", "application/pdf")}
     response = client.post("/api/import", files=files)

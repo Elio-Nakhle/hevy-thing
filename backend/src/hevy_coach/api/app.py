@@ -171,6 +171,12 @@ async def run_import(
     return asdict(result) | {"summary": result.summary()}
 
 
+@app.delete("/api/data")
+def clear_data(db: DbDep) -> dict[str, str]:
+    db.clear_data()
+    return {"status": "ok"}
+
+
 def _import(
     settings: Settings,
     db: Database,

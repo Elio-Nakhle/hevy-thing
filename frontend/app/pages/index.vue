@@ -33,10 +33,22 @@ const { data: records } = await useFetch<PersonalRecord[]>('/api/records', { que
 const { data: headline } = await useFetch<Headline>('/api/headline')
 const { data: health } = await useFetch<Health>('/api/health')
 const { data: profile } = await useFetch<Profile>('/api/profile', { key: 'profile' })
+const clearing = ref(false)
 
 /** Ask for the profile once there is a log for it to be wrong about - a form in
  *  front of an empty dashboard is friction before any payoff. */
 const askForProfile = computed(() => Boolean(overview.value?.workouts && profile.value?.needs_setup))
+
+async function clearData() {
+  if (!window.confirm('Clear all imported workout data? This cannot be undone.')) return
+  clearing.value = true
+  try {
+    await $fetch('/api/data', { method: 'DELETE' })
+    await refreshNuxtData()
+  } finally {
+    clearing.value = false
+  }
+}
 
 const bars = computed(() =>
   (weekly.value ?? []).map((week) => ({ label: week.week_start, value: convert(week.volume_kg) })),
@@ -72,6 +84,15 @@ const severityColor: Record<string, string> = {
         :available-export="health?.available_export"
         @imported="refreshNuxtData()"
       />
+      <Button
+        variant="destructive"
+        size="sm"
+        :disabled="clearing"
+        title="Clear imported workout data"
+        @click="clearData"
+      >
+        {{ clearing ? 'Clearing...' : 'Clear data' }}
+      </Button>
     </div>
 
     <ImportDropzone

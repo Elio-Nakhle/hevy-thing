@@ -253,6 +253,15 @@ class Database:
             cur.execute("DELETE FROM sets WHERE workout_id = ?", (workout_id,))
             cur.execute("DELETE FROM workouts WHERE id = ?", (workout_id,))
 
+    def clear_data(self) -> None:
+        with self.cursor() as cur:
+            cur.execute("DELETE FROM sets")
+            cur.execute("DELETE FROM workouts")
+            cur.execute("DELETE FROM exercise_templates")
+            cur.execute("DELETE FROM body_measurements")
+            cur.execute("DELETE FROM dismissed_routines")
+            cur.execute("DELETE FROM meta WHERE key != 'schema_version'")
+
     def upsert_templates(self, templates: Iterable[Any]) -> int:
         count = 0
         with self.cursor() as cur:
